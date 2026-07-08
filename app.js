@@ -457,17 +457,24 @@ function mapBack(fields) {
   if (!mapped) {
     throw new Error('Mapping des colonnes incomplet. Ouvrez la configuration du widget et mappez les colonnes requises.');
   }
+
+  // Sécurité : ces clés ne doivent jamais être envoyées dans fields.
+  // Sur certaines instances Grist, si elles sont présentes, elles sont interprétées
+  // comme des colonnes métier et provoquent l'erreur : Invalid column "id".
+  delete mapped.id;
+  delete mapped.fields;
+
   return mapped;
 }
 
 async function updateRecord(id, fields) {
   const table = grist.getTable();
-  await table.update({ id: Number(id), fields: mapBack(fields) });
+  await table.update([{ id: Number(id), fields: mapBack(fields) }], { parseStrings: true });
 }
 
 async function createRecord(fields) {
   const table = grist.getTable();
-  await table.create({ fields: mapBack(fields) });
+  await table.create([{ fields: mapBack(fields) }], { parseStrings: true });
 }
 
 async function saveModal() {
