@@ -3,138 +3,160 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kanban EMM - Grist</title>
+  <title>Kanban Services EMM</title>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app" class="app-shell">
+  <div class="shell">
     <header class="hero">
-      <div>
-        <div class="eyebrow">Pilotage EMM</div>
+      <div class="hero__left">
+        <div class="kicker">Pilotage EMM</div>
         <h1>Kanban Services EMM</h1>
-        <p class="subtitle">Vue projet éditable depuis Grist : statuts, priorités, échéances et assignations.</p>
+        <p>Vue projet éditable depuis Grist : statuts, priorités, échéances et assignations.</p>
       </div>
-      <div class="hero-actions">
-        <button id="refreshBtn" class="btn secondary" type="button">Rafraîchir</button>
-        <button id="newCardBtn" class="btn primary" type="button">+ Nouvelle carte</button>
+      <div class="hero__actions">
+        <button id="toggleFiltersBtn" class="btn btn--soft" type="button">Filtres</button>
+        <button id="refreshBtn" class="btn btn--soft" type="button">Rafraîchir</button>
+        <button id="newCardBtn" class="btn btn--primary" type="button">+ Nouvelle carte</button>
       </div>
     </header>
 
-    <section class="toolbar" aria-label="Filtres et tri">
-      <div class="search-wrap">
-        <span class="search-icon">⌕</span>
+    <section id="kpiBar" class="kpis" aria-label="Indicateurs"></section>
+
+    <section class="toolbar">
+      <div class="searchbox">
+        <span aria-hidden="true">⌕</span>
         <input id="searchInput" type="search" placeholder="Rechercher titre, CU, description, commentaire…" />
       </div>
-      <select id="categoryFilter"><option value="">Toutes catégories</option></select>
-      <select id="caseFilter"><option value="">Tous les cas</option></select>
-      <select id="priorityFilter"><option value="">Toutes priorités</option></select>
-      <select id="assigneeFilter"><option value="">Tous assignés</option></select>
-      <select id="sprintFilter"><option value="">Tous sprints</option></select>
-      <select id="sortSelect">
+      <select id="sortSelect" aria-label="Tri">
         <option value="priority">Tri : priorité</option>
         <option value="due">Tri : échéance</option>
-        <option value="modified">Tri : modification récente</option>
-        <option value="created">Tri : création récente</option>
+        <option value="modified">Tri : modifiée le</option>
+        <option value="created">Tri : créé le</option>
         <option value="title">Tri : titre</option>
       </select>
-      <button id="resetFiltersBtn" class="btn ghost" type="button">Réinitialiser</button>
+      <button id="compactBtn" class="btn btn--ghost" type="button">Vue compacte</button>
+      <button id="resetFiltersBtn" class="btn btn--ghost" type="button">Réinitialiser</button>
     </section>
 
-    <section id="statsBar" class="stats-bar" aria-label="Statistiques"></section>
-    <main id="board" class="board" aria-label="Kanban"></main>
+    <section id="filterPanel" class="filters is-open">
+      <label>
+        Catégorie
+        <select id="categoryFilter"><option value="">Toutes catégories</option></select>
+      </label>
+      <label>
+        Cas
+        <select id="caseFilter"><option value="">Tous les cas</option></select>
+      </label>
+      <label>
+        Priorité
+        <select id="priorityFilter"><option value="">Toutes priorités</option></select>
+      </label>
+      <label>
+        Assignée à
+        <select id="assigneeFilter"><option value="">Tous assignés</option></select>
+      </label>
+      <label>
+        Sprint
+        <select id="sprintFilter"><option value="">Tous sprints</option></select>
+      </label>
+    </section>
+
+    <main id="board" class="board" aria-live="polite"></main>
   </div>
 
-  <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal">
-      <div class="modal-header">
-        <div>
-          <div class="eyebrow">Carte EMM</div>
-          <h2 id="modalTitle">Modifier la carte</h2>
-        </div>
-        <button id="closeModalBtn" class="icon-btn" type="button" aria-label="Fermer">×</button>
+  <div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer__header">
+      <div>
+        <div class="kicker">Carte EMM</div>
+        <h2 id="drawerTitle">Nouvelle carte</h2>
       </div>
-
-      <div class="modal-grid">
-        <label>Titre / service
-          <input id="fTitle" type="text" autocomplete="off" />
-        </label>
-
-        <label>Service utilisateur / CU
-          <input id="fCU" type="text" autocomplete="off" />
-        </label>
-
-        <label>Statut
-          <select id="fStatus"></select>
-        </label>
-
-        <label>Priorité
-          <select id="fPriority">
-            <option value=""></option>
-            <option value="Haute">Haute</option>
-            <option value="Moyenne">Moyenne</option>
-            <option value="Basse">Basse</option>
-          </select>
-        </label>
-
-        <label>Catégorie
-          <input id="fCategory" type="text" autocomplete="off" list="categorySuggestions" />
-        </label>
-
-        <label>Cas
-          <select id="fCase">
-            <option value=""></option>
-            <option value="Standard">Standard</option>
-            <option value="Spécifique">Spécifique</option>
-          </select>
-        </label>
-
-        <label>Échéance
-          <input id="fDueDate" type="date" />
-        </label>
-
-        <label>Assignée à
-          <input id="fAssignees" type="text" placeholder="Nom 1, Nom 2" autocomplete="off" list="assigneeSuggestions" />
-        </label>
-
-        <label>Sprint
-          <input id="fSprint" type="text" autocomplete="off" list="sprintSuggestions" />
-        </label>
-
-        <label>RTU
-          <input id="fRTU" type="text" autocomplete="off" />
-        </label>
-
-        <label>CP / Demandeur
-          <input id="fRequester" type="text" autocomplete="off" />
-        </label>
-
-        <label>Créée par
-          <input id="fCreatedBy" type="text" autocomplete="off" />
-        </label>
-
-        <label class="span-2">Description
-          <textarea id="fDescription" rows="7"></textarea>
-        </label>
-
-        <label class="span-2">Commentaire
-          <textarea id="fComment" rows="5"></textarea>
-        </label>
-      </div>
-
-      <div class="modal-footer">
-        <div id="modalMeta" class="modal-meta"></div>
-        <div class="modal-actions">
-          <button id="deleteCardBtn" class="btn danger" type="button">Supprimer</button>
-          <button id="saveCardBtn" class="btn primary" type="button">Enregistrer</button>
-        </div>
-      </div>
+      <button id="closeDrawerBtn" class="icon-btn" type="button" aria-label="Fermer">×</button>
     </div>
-  </div>
 
-  <datalist id="categorySuggestions"></datalist>
-  <datalist id="assigneeSuggestions"></datalist>
-  <datalist id="sprintSuggestions"></datalist>
+    <form id="cardForm" class="form">
+      <section class="form-section">
+        <h3>Général</h3>
+        <div class="grid grid--2">
+          <label class="span-2">Titre / service
+            <input id="fTitle" type="text" placeholder="Ex. SDIS 74 — profil kiosque complémentaire" />
+          </label>
+          <label>Service utilisateur / CU
+            <input id="fCU" type="text" />
+          </label>
+          <label>Catégorie
+            <input id="fCategory" type="text" placeholder="Wi-Fi, Kiosque, Messagerie…" />
+          </label>
+          <label>Cas
+            <select id="fCase">
+              <option value=""></option>
+              <option value="Standard">Standard</option>
+              <option value="Spécifique">Spécifique</option>
+            </select>
+          </label>
+          <label>RTU
+            <input id="fRTU" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Pilotage</h3>
+        <div class="grid grid--2">
+          <label>Statut
+            <select id="fStatus"></select>
+          </label>
+          <label>Priorité
+            <select id="fPriority">
+              <option value=""></option>
+              <option value="P0">P0</option>
+              <option value="P1">P1</option>
+              <option value="P2">P2</option>
+              <option value="P3">P3</option>
+              <option value="Haute">Haute</option>
+              <option value="Moyenne">Moyenne</option>
+              <option value="Basse">Basse</option>
+            </select>
+          </label>
+          <label>Échéance
+            <input id="fDueDate" type="date" />
+          </label>
+          <label>Sprint
+            <input id="fSprint" type="text" />
+          </label>
+          <label class="span-2">Assignée à
+            <input id="fAssignees" type="text" placeholder="Nom 1, Nom 2" />
+          </label>
+          <label>CP / Demandeur
+            <input id="fRequester" type="text" />
+          </label>
+          <label>Créée par
+            <input id="fCreatedBy" type="text" />
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Description et suivi</h3>
+        <label>Description
+          <textarea id="fDescription" rows="7" placeholder="Décrire le besoin, le contexte, l’attendu et les points ouverts…"></textarea>
+        </label>
+        <label>Commentaire
+          <textarea id="fComment" rows="6" placeholder="Notes de suivi, échanges, arbitrages, risques…"></textarea>
+        </label>
+      </section>
+    </form>
+
+    <footer class="drawer__footer">
+      <div id="drawerMeta" class="meta">Nouvelle carte</div>
+      <div class="drawer__buttons">
+        <button id="deleteCardBtn" class="btn btn--danger" type="button">Supprimer</button>
+        <button id="saveCardBtn" class="btn btn--primary" type="button">Enregistrer</button>
+      </div>
+    </footer>
+  </aside>
 
   <div id="toast" class="toast hidden"></div>
   <script src="app.js"></script>
