@@ -3,44 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kanban Services EMM</title>
+  <title>Dashboard EMM</title>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="shell">
-    <header class="hero">
-      <div class="hero__left">
-        <div class="kicker">Pilotage EMM</div>
-        <h1>Kanban Services EMM</h1>
-        <p>Vue projet éditable depuis Grist : statuts, priorités, échéances et assignations.</p>
-      </div>
-      <div class="hero__actions">
-        <button id="toggleFiltersBtn" class="btn btn--soft" type="button">Filtres</button>
-        <button id="refreshBtn" class="btn btn--soft" type="button">Rafraîchir</button>
+    <header class="masthead">
+      <h1>Dashboard EMM</h1>
+      <div class="masthead__actions">
+        <button id="refreshBtn" class="btn btn--ghost" type="button">Rafraîchir</button>
         <button id="newCardBtn" class="btn btn--primary" type="button">+ Nouvelle carte</button>
       </div>
     </header>
 
-    <section id="kpiBar" class="kpis" aria-label="Indicateurs"></section>
+    <section class="control-deck" aria-label="Pilotage et filtres">
+      <div id="kpiBar" class="metrics" aria-label="Indicateurs"></div>
 
-    <section class="toolbar">
-      <div class="searchbox">
-        <span aria-hidden="true">⌕</span>
-        <input id="searchInput" type="search" placeholder="Rechercher titre, CU, description, commentaire…" />
+      <div class="quick-tools">
+        <div class="searchbox">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Rechercher titre, CU, description…" />
+        </div>
+
+        <select id="sortSelect" aria-label="Tri">
+          <option value="priority">Tri : priorité</option>
+          <option value="due">Tri : échéance</option>
+          <option value="modified">Tri : modifiée le</option>
+          <option value="created">Tri : créé le</option>
+          <option value="title">Tri : titre</option>
+        </select>
+
+        <button id="toggleFiltersBtn" class="btn btn--soft" type="button">Filtres</button>
+        <button id="compactBtn" class="btn btn--soft" type="button">Vue compacte</button>
+        <button id="resetFiltersBtn" class="btn btn--subtle" type="button">Réinitialiser</button>
       </div>
-      <select id="sortSelect" aria-label="Tri">
-        <option value="priority">Tri : priorité</option>
-        <option value="due">Tri : échéance</option>
-        <option value="modified">Tri : modifiée le</option>
-        <option value="created">Tri : créé le</option>
-        <option value="title">Tri : titre</option>
-      </select>
-      <button id="compactBtn" class="btn btn--ghost" type="button">Vue compacte</button>
-      <button id="resetFiltersBtn" class="btn btn--ghost" type="button">Réinitialiser</button>
     </section>
 
-    <section id="filterPanel" class="filters is-open">
+    <section id="filterPanel" class="filters">
       <label>
         Catégorie
         <select id="categoryFilter"><option value="">Toutes catégories</option></select>
@@ -70,7 +70,7 @@
   <aside id="drawer" class="drawer" aria-hidden="true">
     <div class="drawer__header">
       <div>
-        <div class="kicker">Carte EMM</div>
+        <div class="drawer-kicker">Carte EMM</div>
         <h2 id="drawerTitle">Nouvelle carte</h2>
       </div>
       <button id="closeDrawerBtn" class="icon-btn" type="button" aria-label="Fermer">×</button>

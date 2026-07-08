@@ -189,6 +189,17 @@ function isOverdue(value, status) {
   return d.getTime() < today.getTime();
 }
 
+function isDueSoon(value, status) {
+  if (!value || status === "Déployé" || isOverdue(value, status)) return false;
+  const iso = dateToISO(value);
+  if (!iso) return false;
+  const d = new Date(iso + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((d.getTime() - today.getTime()) / 86400000);
+  return diffDays >= 0 && diffDays <= 7;
+}
+
 function truncate(text, max = 155) {
   const s = asText(text).trim();
   return s.length > max ? s.slice(0, max).trim() + "…" : s;
@@ -276,21 +287,21 @@ function makeEl(tag, className, text) {
 
 function renderKpis(records) {
   const total = records.length;
-  const high = records.filter(r => ["P0", "P1", "Haute"].includes(r.Priority)).length;
+  const urgent = records.filter(r => r.Status !== "Déployé" && ["P0", "P1", "Haute"].includes(r.Priority)).length;
   const overdue = records.filter(r => isOverdue(r.DesiredDate, r.Status)).length;
-  const deployed = records.filter(r => r.Status === "Déployé").length;
+  const dueSoon = records.filter(r => isDueSoon(r.DesiredDate, r.Status)).length;
 
   const items = [
-    ["Total", total],
-    ["Priorité haute", high],
-    ["En retard", overdue],
-    ["Déployés", deployed]
+    ["En retard", overdue, "kpi--danger"],
+    ["Urgents", urgent, "kpi--warning"],
+    ["À 7 jours", dueSoon, "kpi--attention"],
+    ["Total", total, "kpi--neutral"]
   ];
 
   const kpiBar = $("kpiBar");
   kpiBar.replaceChildren();
-  items.forEach(([label, value]) => {
-    const card = makeEl("div", "kpi");
+  items.forEach(([label, value, modifier]) => {
+    const card = makeEl("div", `kpi ${modifier}`.trim());
     card.appendChild(makeEl("div", "kpi__label", label));
     card.appendChild(makeEl("div", "kpi__value", String(value)));
     kpiBar.appendChild(card);
@@ -594,7 +605,11 @@ function renderMappingMessage() {
 function bindEvents() {
   $("newCardBtn").addEventListener("click", () => openDrawer(null));
   $("refreshBtn").addEventListener("click", () => window.location.reload());
-  $("toggleFiltersBtn").addEventListener("click", () => $("filterPanel").classList.toggle("is-open"));
+  $("toggleFiltersBtn").addEventListener("click", () => {
+    const panel = $("filterPanel");
+    const isOpen = panel.classList.toggle("is-open");
+    $("toggleFiltersBtn").textContent = isOpen ? "Masquer filtres" : "Filtres";
+  });
   $("compactBtn").addEventListener("click", () => {
     state.compact = !state.compact;
     document.body.classList.toggle("compact", state.compact);

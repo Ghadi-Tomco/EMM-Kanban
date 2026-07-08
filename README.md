@@ -1,48 +1,35 @@
-# Grist EMM Kanban Widget — V2
+# Grist EMM Kanban Widget — V3
 
-Widget Kanban éditable pour une table Grist de suivi EMM.
+Custom widget Grist pour piloter la table EMM sous forme de dashboard Kanban éditable.
 
-## Fichiers
+## Nouveautés V3
+
+- Titre simplifié : `Dashboard EMM`.
+- Header beaucoup plus compact.
+- Suppression du sous-titre et du libellé `Pilotage EMM`.
+- Indicateurs revus : `En retard`, `Urgents`, `À 7 jours`, `Total`.
+- Suppression de l’indicateur `Déployés`.
+- Filtres repliés par défaut.
+- Barre de recherche, tri et boutons plus compacts.
+- Style des sélecteurs modernisé.
+- Design général moins dense.
+
+## Installation
+
+Déposer les fichiers à la racine du dépôt GitHub Pages :
 
 - `index.html`
 - `styles.css`
 - `app.js`
+- `README.md`
 - `.nojekyll`
 
-## Déploiement GitHub Pages
+Puis mettre à jour l’URL du widget dans Grist, si besoin avec un suffixe de cache :
 
-1. Remplacer les fichiers existants du dépôt GitHub Pages par ceux-ci.
-2. Vérifier que GitHub Pages est activé sur `main` / `/ (root)`.
-3. Attendre la republication GitHub Pages.
-4. Faire un rechargement fort dans Grist : `Ctrl + F5` ou `Cmd + Shift + R`.
+```text
+https://<compte>.github.io/<repo>/?v=3
+```
 
-## Accès Grist requis
+## Accès Grist
 
-Le widget modifie les lignes de la table source. Il nécessite donc un accès Grist avec écriture / Full document access.
-
-## Mapping conseillé
-
-| Champ widget | Colonne Grist |
-|---|---|
-| `Title` | `Service` |
-| `ServiceUtilisateur` | `Service Utilisateur` |
-| `Category` | `Catégorie` |
-| `CaseType` | `Cas` |
-| `Description` | `Description` |
-| `DesiredDate` | `Date souhaitée` |
-| `Priority` | `Prio` |
-| `ModifiedAt` | `Modifiée le` |
-| `Status` | `Statut` |
-| `Assignees` | `Assignée à` |
-| `Comment` | `Commentaire` |
-| `RTU` | `RTU` |
-| `Sprint` | `Sprint` |
-| `CreatedBy` | `Créée par` |
-| `CreatedAt` | `Créé le` |
-| `Requester` | `CP/Demandeur` |
-
-## Notes
-
-- La colonne `Assignée à` est prévue pour être du texte ou une Choice List simple.
-- Si `Assignée à` est une Reference List vers une table Contacts, il faudra une version spécifique pour gérer les identifiants internes Grist.
-- La colonne `Service` est utilisée comme titre de carte. Si vous ajoutez une vraie colonne `Titre`, mappez `Title` vers cette colonne.
+Le widget modifie les données sources et nécessite donc un accès complet au document Grist.
