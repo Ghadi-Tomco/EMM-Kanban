@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kanban EMM - Grist</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Pilotage EMM</div>
+        <h1>Kanban Services EMM</h1>
+        <p class="subtitle">Vue projet éditable depuis Grist : statuts, priorités, échéances et assignations.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="refreshBtn" class="btn secondary" type="button">Rafraîchir</button>
+        <button id="newCardBtn" class="btn primary" type="button">+ Nouvelle carte</button>
+      </div>
+    </header>
+
+    <section class="toolbar" aria-label="Filtres et tri">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input id="searchInput" type="search" placeholder="Rechercher titre, CU, description, commentaire…" />
+      </div>
+      <select id="categoryFilter"><option value="">Toutes catégories</option></select>
+      <select id="caseFilter"><option value="">Tous les cas</option></select>
+      <select id="priorityFilter"><option value="">Toutes priorités</option></select>
+      <select id="assigneeFilter"><option value="">Tous assignés</option></select>
+      <select id="sprintFilter"><option value="">Tous sprints</option></select>
+      <select id="sortSelect">
+        <option value="priority">Tri : priorité</option>
+        <option value="due">Tri : échéance</option>
+        <option value="modified">Tri : modification récente</option>
+        <option value="created">Tri : création récente</option>
+        <option value="title">Tri : titre</option>
+      </select>
+      <button id="resetFiltersBtn" class="btn ghost" type="button">Réinitialiser</button>
+    </section>
+
+    <section id="statsBar" class="stats-bar" aria-label="Statistiques"></section>
+    <main id="board" class="board" aria-label="Kanban"></main>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="eyebrow">Carte EMM</div>
+          <h2 id="modalTitle">Modifier la carte</h2>
+        </div>
+        <button id="closeModalBtn" class="icon-btn" type="button" aria-label="Fermer">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <label>Titre / service
+          <input id="fTitle" type="text" autocomplete="off" />
+        </label>
+
+        <label>Service utilisateur / CU
+          <input id="fCU" type="text" autocomplete="off" />
+        </label>
+
+        <label>Statut
+          <select id="fStatus"></select>
+        </label>
+
+        <label>Priorité
+          <select id="fPriority">
+            <option value=""></option>
+            <option value="Haute">Haute</option>
+            <option value="Moyenne">Moyenne</option>
+            <option value="Basse">Basse</option>
+          </select>
+        </label>
+
+        <label>Catégorie
+          <input id="fCategory" type="text" autocomplete="off" list="categorySuggestions" />
+        </label>
+
+        <label>Cas
+          <select id="fCase">
+            <option value=""></option>
+            <option value="Standard">Standard</option>
+            <option value="Spécifique">Spécifique</option>
+          </select>
+        </label>
+
+        <label>Échéance
+          <input id="fDueDate" type="date" />
+        </label>
+
+        <label>Assignée à
+          <input id="fAssignees" type="text" placeholder="Nom 1, Nom 2" autocomplete="off" list="assigneeSuggestions" />
+        </label>
+
+        <label>Sprint
+          <input id="fSprint" type="text" autocomplete="off" list="sprintSuggestions" />
+        </label>
+
+        <label>RTU
+          <input id="fRTU" type="text" autocomplete="off" />
+        </label>
+
+        <label>CP / Demandeur
+          <input id="fRequester" type="text" autocomplete="off" />
+        </label>
+
+        <label>Créée par
+          <input id="fCreatedBy" type="text" autocomplete="off" />
+        </label>
+
+        <label class="span-2">Description
+          <textarea id="fDescription" rows="7"></textarea>
+        </label>
+
+        <label class="span-2">Commentaire
+          <textarea id="fComment" rows="5"></textarea>
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <div id="modalMeta" class="modal-meta"></div>
+        <div class="modal-actions">
+          <button id="deleteCardBtn" class="btn danger" type="button">Supprimer</button>
+          <button id="saveCardBtn" class="btn primary" type="button">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="categorySuggestions"></datalist>
+  <datalist id="assigneeSuggestions"></datalist>
+  <datalist id="sprintSuggestions"></datalist>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
