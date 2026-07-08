@@ -506,12 +506,32 @@ function cleanedFields(fields) {
 }
 
 function mapBack(fields) {
-  const mapped = grist.mapColumnNamesBack(cleanedFields(fields));
+  const cleaned = cleanedFields(fields);
+
+  // IMPORTANT : pour une mise à jour partielle, par exemple un drag & drop qui
+  // ne modifie que Statut + Modifiée le, il faut demander à Grist de mapper
+  // uniquement les colonnes présentes dans "fields".
+  // Sans ce filtrage, mapColumnNamesBack peut renvoyer aussi les autres colonnes
+  // mappées avec une valeur undefined, ce qui peut effacer les données existantes.
+  const requestedColumns = COLUMNS.filter(col =>
+    Object.prototype.hasOwnProperty.call(cleaned, col.name)
+  );
+
+  const mapped = grist.mapColumnNamesBack(cleaned, { columns: requestedColumns });
   if (!mapped) {
     throw new Error("Mapping des colonnes incomplet. Ouvrez la configuration du widget et mappez les colonnes requises.");
   }
+
+  // Sécurité : ces clés ne doivent jamais être envoyées comme champs métier.
   delete mapped.id;
   delete mapped.fields;
+
+  // Sécurité complémentaire : ne jamais envoyer de champ undefined à Grist,
+  // sinon certaines instances peuvent interpréter cela comme une remise à vide.
+  Object.keys(mapped).forEach(key => {
+    if (mapped[key] === undefined) delete mapped[key];
+  });
+
   return mapped;
 }
 
