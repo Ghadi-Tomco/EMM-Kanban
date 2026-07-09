@@ -33,3 +33,10 @@ https://<compte>.github.io/<repo>/?v=3
 ## Accès Grist
 
 Le widget modifie les données sources et nécessite donc un accès complet au document Grist.
+
+
+## V3.2
+
+- Support de la colonne `Service Utilisateur` en type `Reference` vers `REF_Services Utilisateurs`.
+- Le champ CU est affiché comme liste déroulante à partir du référentiel services.
+- Le widget écrit l'identifiant de ligne du service dans la colonne de référence.

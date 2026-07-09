@@ -30,7 +30,7 @@ const PRIORITY_RANK = {
 
 const COLUMNS = [
   { name: "Title", title: "Service", type: "Text" },
-  { name: "ServiceUtilisateur", title: "Service Utilisateur", type: "Text" },
+  { name: "ServiceUtilisateur", title: "Service Utilisateur", type: "Text,Ref" },
   { name: "Category", title: "Catégorie", type: "Text" },
   { name: "CaseType", title: "Cas", type: "Text" },
   { name: "Description", title: "Description", type: "Text" },
@@ -67,7 +67,167 @@ let allRecords = [];
 let currentRecordId = null;
 let dragStartedAt = 0;
 
+let servicesLoaded = false;
+let servicesLoadError = null;
+let services = [];
+let serviceById = new Map();
+let serviceIdByLabel = new Map();
+
+const SERVICE_TABLE_CANDIDATES = [
+  "REF_Services_Utilisateurs",
+  "REF_Services Utilisateurs",
+  "REFServicesUtilisateurs",
+  "REF_Services_Utilisateurs1",
+  "REF_Services_Utilisateurs2"
+];
+
 const $ = (id) => document.getElementById(id);
+
+function normalizeKey(value) {
+  return asText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function getFirstValue(row, keys) {
+  for (const key of keys) {
+    if (row && row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
+  }
+  return "";
+}
+
+function rowRecordsFromTable(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.id)) {
+    return data.id.map((id, i) => {
+      const row = { id };
+      Object.keys(data).forEach(k => { row[k] = data[k][i]; });
+      return row;
+    });
+  }
+  return [];
+}
+
+async function findTableId(candidates, fuzzyNeedle) {
+  for (const tableId of candidates) {
+    try {
+      await grist.docApi.fetchTable(tableId);
+      return tableId;
+    } catch (e) {
+      // Essai suivant.
+    }
+  }
+
+  try {
+    const tableIds = await grist.docApi.listTables();
+    const needle = normalizeKey(fuzzyNeedle);
+    const found = (tableIds || []).find(t => normalizeKey(t).includes(needle));
+    return found || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function loadServicesReference() {
+  if (servicesLoaded) return;
+
+  servicesLoaded = true;
+  servicesLoadError = null;
+  services = [];
+  serviceById = new Map();
+  serviceIdByLabel = new Map();
+
+  try {
+    const tableId = await findTableId(SERVICE_TABLE_CANDIDATES, "REF Services Utilisateurs");
+    if (!tableId) {
+      servicesLoadError = "Table REF_Services Utilisateurs introuvable";
+      return;
+    }
+
+    const raw = await grist.docApi.fetchTable(tableId);
+    services = rowRecordsFromTable(raw).map(row => {
+      const nom = asText(getFirstValue(row, ["Nom", "nom"]));
+      const nomLong = asText(getFirstValue(row, ["Nom_Long", "Nom Long", "nom_long"]));
+      const label = nom || nomLong || `Service #${row.id}`;
+      return { id: Number(row.id), nom, nomLong, label };
+    }).filter(svc => svc.id && svc.label)
+      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+
+    services.forEach(svc => {
+      serviceById.set(Number(svc.id), svc);
+      serviceIdByLabel.set(normalizeKey(svc.label), Number(svc.id));
+      if (svc.nom) serviceIdByLabel.set(normalizeKey(svc.nom), Number(svc.id));
+      if (svc.nomLong) serviceIdByLabel.set(normalizeKey(svc.nomLong), Number(svc.id));
+    });
+  } catch (err) {
+    console.warn("Impossible de charger REF_Services Utilisateurs", err);
+    servicesLoadError = err.message || "Erreur de chargement du référentiel services";
+  }
+}
+
+function serviceLabel(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") return serviceById.get(Number(value))?.label || `Service #${value}`;
+  if (Array.isArray(value)) return asArray(value).join(", ");
+
+  const text = asText(value);
+  const maybeId = Number(text);
+  if (Number.isInteger(maybeId) && serviceById.has(maybeId)) {
+    return serviceById.get(maybeId).label;
+  }
+  return text;
+}
+
+function rawServiceId(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") return Number(value);
+  const text = asText(value);
+  const numeric = Number(text);
+  if (Number.isInteger(numeric) && serviceById.has(numeric)) return numeric;
+  const fromLabel = serviceIdByLabel.get(normalizeKey(text));
+  return fromLabel || text;
+}
+
+function populateServiceSelect(record) {
+  const select = $("fCU");
+  if (!select) return;
+  select.replaceChildren();
+
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "";
+  select.appendChild(empty);
+
+  services.forEach(svc => {
+    const option = document.createElement("option");
+    option.value = String(svc.id);
+    option.textContent = svc.label;
+    select.appendChild(option);
+  });
+
+  const raw = record?.ServiceUtilisateurRaw ?? "";
+  const rawId = rawServiceId(raw);
+  if (rawId !== "" && rawId !== null && rawId !== undefined) {
+    const value = String(rawId);
+    if (![...select.options].some(opt => opt.value === value)) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = serviceLabel(raw);
+      select.appendChild(option);
+    }
+    select.value = value;
+  }
+}
+
+function serviceValueForSave() {
+  const value = getValue("fCU");
+  if (!value) return "";
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : value;
+}
 
 function asArray(value) {
   if (Array.isArray(value)) {
@@ -130,7 +290,8 @@ function normalizeRecord(r) {
   return {
     id: r.id,
     Title: asText(r.Title),
-    ServiceUtilisateur: asText(r.ServiceUtilisateur),
+    ServiceUtilisateurRaw: r.ServiceUtilisateur,
+    ServiceUtilisateur: serviceLabel(r.ServiceUtilisateur),
     Category: asText(r.Category),
     CaseType: asText(r.CaseType),
     Description: asText(r.Description),
@@ -451,7 +612,7 @@ function openDrawer(id = null) {
   $("deleteCardBtn").style.display = record ? "inline-flex" : "none";
 
   setValue("fTitle", record?.Title || "");
-  setValue("fCU", record?.ServiceUtilisateur || "");
+  populateServiceSelect(record);
   setValue("fCategory", record?.Category || "");
   setValue("fCase", record?.CaseType || "");
   setValue("fRTU", record?.RTU || "");
@@ -560,7 +721,7 @@ async function saveDrawer() {
 
   const fields = {
     Title: getValue("fTitle"),
-    ServiceUtilisateur: getValue("fCU"),
+    ServiceUtilisateur: serviceValueForSave(),
     Category: getValue("fCategory"),
     CaseType: getValue("fCase"),
     RTU: getValue("fRTU"),
@@ -693,13 +854,20 @@ function bindEvents() {
 
 bindEvents();
 
-grist.onRecords((data) => {
+grist.onRecords(async (data) => {
   const mapped = grist.mapColumnNames(data);
   if (!mapped) {
     renderMappingMessage();
     return;
   }
+
+  await loadServicesReference();
+
   allRecords = normalizeIncoming(mapped).map(normalizeRecord).filter(r => r.id !== undefined && r.id !== null);
   refreshFilterOptions();
   renderBoard();
+
+  if (servicesLoadError) {
+    console.warn(servicesLoadError);
+  }
 });
