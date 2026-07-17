@@ -13,56 +13,76 @@
       <h1>Dashboard EMM</h1>
       <div class="masthead__actions">
         <button id="refreshBtn" class="btn btn--ghost" type="button">Rafraîchir</button>
-        <button id="newCardBtn" class="btn btn--primary" type="button">+ Nouvelle carte</button>
+        <button id="newCardBtn" class="btn btn--primary btn--new" type="button">+ Nouvelle carte</button>
       </div>
     </header>
 
-    <section class="control-deck" aria-label="Pilotage et filtres">
-      <div id="kpiBar" class="metrics" aria-label="Indicateurs"></div>
-
-      <div class="quick-tools">
-        <div class="searchbox">
-          <span aria-hidden="true">⌕</span>
-          <input id="searchInput" type="search" placeholder="Rechercher titre, CU, description…" />
+    <section id="filterDeck" class="filter-deck" aria-label="Filtres du dashboard EMM">
+      <div id="filtersContent" class="filter-deck__content">
+        <div class="filter-row filter-row--services">
+          <label class="filter-field">
+            <span>Service utilisateur</span>
+            <select id="serviceFilter"><option value="">Tous les services utilisateurs</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Communauté</span>
+            <select id="communityFilter"><option value="">Toutes les communautés</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Département</span>
+            <select id="departmentFilter"><option value="">Tous les départements</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Statut déploiement</span>
+            <select id="deploymentStatusFilter"><option value="">Tous les statuts</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Priorité déploiement</span>
+            <select id="deploymentPriorityFilter"><option value="">Toutes les priorités</option></select>
+          </label>
         </div>
 
-        <select id="sortSelect" aria-label="Tri">
+        <div class="filter-row filter-row--work">
+          <label class="filter-field filter-field--search">
+            <span>Recherche</span>
+            <div class="searchbox">
+              <span aria-hidden="true">⌕</span>
+              <input id="searchInput" type="search" placeholder="Rechercher un mot clé" />
+            </div>
+          </label>
+          <label class="filter-field">
+            <span>Catégorie</span>
+            <select id="categoryFilter"><option value="">Toutes les catégories</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Cas</span>
+            <select id="caseFilter"><option value="">Tous les cas</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Priorité</span>
+            <select id="priorityFilter"><option value="">Toutes les priorités</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Assignée à</span>
+            <select id="assigneeFilter"><option value="">Toutes les personnes</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <select id="sortSelect" class="sort-control" aria-label="Tri">
           <option value="priority">Tri : priorité</option>
           <option value="due">Tri : échéance</option>
           <option value="modified">Tri : modifiée le</option>
           <option value="created">Tri : créé le</option>
           <option value="title">Tri : titre</option>
         </select>
-
-        <button id="toggleFiltersBtn" class="btn btn--soft" type="button">Filtres</button>
-        <button id="compactBtn" class="btn btn--soft" type="button">Vue compacte</button>
-        <button id="resetFiltersBtn" class="btn btn--subtle" type="button">Réinitialiser</button>
+        <button id="toggleFiltersBtn" class="filter-action-btn" type="button">Masquer les filtres</button>
+        <button id="compactBtn" class="filter-action-btn" type="button">Vue compacte</button>
       </div>
     </section>
 
-    <section id="filterPanel" class="filters">
-      <label>
-        Catégorie
-        <select id="categoryFilter"><option value="">Toutes catégories</option></select>
-      </label>
-      <label>
-        Cas
-        <select id="caseFilter"><option value="">Tous les cas</option></select>
-      </label>
-      <label>
-        Priorité
-        <select id="priorityFilter"><option value="">Toutes priorités</option></select>
-      </label>
-      <label>
-        Assignée à
-        <select id="assigneeFilter"><option value="">Tous assignés</option></select>
-      </label>
-      <label>
-        Sprint
-        <select id="sprintFilter"><option value="">Tous sprints</option></select>
-      </label>
-    </section>
-
+    <section id="kpiBar" class="metrics" aria-label="Indicateurs"></section>
     <main id="board" class="board" aria-live="polite"></main>
   </div>
 

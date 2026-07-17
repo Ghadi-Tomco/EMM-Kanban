@@ -1,42 +1,61 @@
-# Grist EMM Kanban Widget — V3
+# Dashboard EMM — V3.3
 
-Custom widget Grist pour piloter la table EMM sous forme de dashboard Kanban éditable.
+Widget Kanban éditable pour la table `B_EMM` dans Grist.
 
-## Nouveautés V3
+## Évolutions de cette version
 
-- Titre simplifié : `Dashboard EMM`.
-- Header beaucoup plus compact.
-- Suppression du sous-titre et du libellé `Pilotage EMM`.
-- Indicateurs revus : `En retard`, `Urgents`, `À 7 jours`, `Total`.
-- Suppression de l’indicateur `Déployés`.
-- Filtres repliés par défaut.
-- Barre de recherche, tri et boutons plus compacts.
-- Style des sélecteurs modernisé.
-- Design général moins dense.
+### Filtres en trois lignes
+
+1. **Filtres du référentiel des services utilisateurs** :
+   - Service utilisateur ;
+   - Communauté ;
+   - Département ;
+   - Statut de déploiement ;
+   - Priorité de déploiement.
+
+   Les quatre dernières informations sont lues dans `REF_Services Utilisateurs`. Si aucune colonne explicite `Statut Déploiement` n'est trouvée, le widget utilise `Avancement Matrice de déploiement`.
+
+2. **Filtres des sujets EMM** :
+   - recherche par mot-clé ;
+   - catégorie ;
+   - cas ;
+   - priorité ;
+   - personne assignée.
+
+   Le filtre Sprint a été retiré du menu. Le champ Sprint reste disponible dans la fiche d'édition d'une carte.
+
+3. **Actions d'affichage** :
+   - tri ;
+   - masquer / afficher les filtres ;
+   - vue compacte / détaillée.
+
+### Indicateurs
+
+Les KPI sont placés sous les filtres et utilisent le même style que le Dashboard Service Utilisateur :
+
+- `Sujets en cours` : cartes dont le statut n'est pas `Déployé` ;
+- `P0 ou P1` : cartes P0/P1 non déployées ;
+- `En retard` : cartes non déployées dont la date souhaitée est passée.
+
+L'indicateur `À 7 jours` a été supprimé.
+
+### Design
+
+- Couleurs métier réservées aux priorités et aux échéances en retard.
+- Catégories, cas et colonnes de statut affichés dans des tons neutres.
+- Listes déroulantes modernisées.
+- Bouton `Nouvelle carte` légèrement assombri.
+- Conservation du glisser-déposer, de l'édition latérale et des correctifs de mise à jour partielle.
 
 ## Installation
 
-Déposer les fichiers à la racine du dépôt GitHub Pages :
+Déposer à la racine d'un dépôt GitHub Pages :
 
 - `index.html`
 - `styles.css`
 - `app.js`
-- `README.md`
 - `.nojekyll`
 
-Puis mettre à jour l’URL du widget dans Grist, si besoin avec un suffixe de cache :
+Configurer ensuite le custom widget Grist avec l'URL GitHub Pages et accorder `Full document access`.
 
-```text
-https://<compte>.github.io/<repo>/?v=3
-```
-
-## Accès Grist
-
-Le widget modifie les données sources et nécessite donc un accès complet au document Grist.
-
-
-## V3.2
-
-- Support de la colonne `Service Utilisateur` en type `Reference` vers `REF_Services Utilisateurs`.
-- Le champ CU est affiché comme liste déroulante à partir du référentiel services.
-- Le widget écrit l'identifiant de ligne du service dans la colonne de référence.
+Le mapping des colonnes de `B_EMM` reste identique à la version précédente. Le champ `Service Utilisateur` accepte une colonne texte ou une référence Grist.
