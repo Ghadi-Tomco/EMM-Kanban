@@ -406,3 +406,53 @@ input:focus, select:focus, textarea:focus, .combobox-wrap:focus-within input {
   .drawer__buttons { width: 100%; }
   .drawer__buttons .btn { flex: 1; }
 }
+
+/* V3.5 — filter panel unified with the Service Dashboard */
+.filters-panel {
+  gap: 0;
+  padding: 12px;
+  background: #fff;
+}
+
+.filters-content {
+  gap: 0;
+}
+
+.filter-row {
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.filter-row--services {
+  background: transparent;
+  border: 0;
+}
+
+.filter-row--work {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #edf0f4;
+  margin-top: 11px;
+  padding-top: 11px;
+}
+
+.filter-actions {
+  border-top: 1px solid #edf0f4;
+  margin-top: 11px;
+  padding: 11px 1px 0;
+}
+
+.filters-panel.filters-hidden .filter-actions {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* The KPI bar is hidden in compact mode; preserve the visual breathing room
+   that it normally creates between the filters and the Kanban. */
+.compact .board {
+  margin-top: 12px;
+}
