@@ -8,6 +8,7 @@ const STATUSES = [
   "Déployé"
 ];
 
+
 const PRIORITY_RANK = {
   "P0": 0,
   "P1": 1,
@@ -20,7 +21,7 @@ const PRIORITY_RANK = {
 
 const COLUMNS = [
   { name: "Title", title: "Service", type: "Text" },
-  { name: "ServiceUtilisateur", title: "Service Utilisateur" },
+  { name: "ServiceUtilisateur", title: "Service Utilisateur", type: "Text,Ref" },
   { name: "Category", title: "Catégorie", type: "Text" },
   { name: "CaseType", title: "Cas", type: "Text" },
   { name: "Description", title: "Description", type: "Text" },
@@ -43,7 +44,7 @@ grist.ready({
 });
 
 const state = {
-  serviceId: "",
+  serviceId: null,
   community: "",
   department: "",
   deploymentStatus: "",
@@ -67,6 +68,7 @@ let servicesLoadError = null;
 let services = [];
 let serviceById = new Map();
 let serviceIdByLabel = new Map();
+let serviceComboIndex = -1;
 
 const SERVICE_TABLE_CANDIDATES = [
   "REF_Services_Utilisateurs",
@@ -89,19 +91,6 @@ function normalizeKey(value) {
 function getFirstValue(row, keys) {
   for (const key of keys) {
     if (row && row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
-  }
-  return "";
-}
-
-function getFlexibleValue(row, keys) {
-  const direct = getFirstValue(row, keys);
-  if (direct !== "") return direct;
-  if (!row) return "";
-  const normalizedCandidates = new Set(keys.map(normalizeKey));
-  for (const [key, value] of Object.entries(row)) {
-    if (normalizedCandidates.has(normalizeKey(key)) && value !== undefined && value !== null && value !== "") {
-      return value;
-    }
   }
   return "";
 }
@@ -157,24 +146,23 @@ async function loadServicesReference() {
 
     const raw = await grist.docApi.fetchTable(tableId);
     services = rowRecordsFromTable(raw).map(row => {
-      const nom = asText(getFlexibleValue(row, ["Nom", "nom"]));
-      const nomLong = asText(getFlexibleValue(row, ["Nom_Long", "Nom Long", "nom_long"]));
-      const community = asText(getFlexibleValue(row, [
-        "Communauté Nationale", "Communaute Nationale", "Communauté_Nationale", "Communaute_Nationale"
-      ]));
-      const department = asText(getFlexibleValue(row, ["Département", "Departement"]));
-      const deploymentPriority = asText(getFlexibleValue(row, [
-        "Priorité Déploiement", "Priorite Deploiement", "Priorité_Déploiement", "Priorite_Deploiement"
-      ]));
-      const deploymentStatus = asText(getFlexibleValue(row, [
-        "Statut Déploiement", "Statut Deploiement", "Statut_Déploiement", "Statut_Deploiement",
-        "Avancement Matrice de déploiement", "Avancement Matrice de deploiement",
-        "Avancement_Matrice_de_déploiement", "Avancement_Matrice_de_deploiement"
-      ]));
+      const nom = cleanDimensionValue(getFirstValue(row, ["Nom", "nom"]));
+      const nomLong = cleanDimensionValue(getFirstValue(row, ["Nom_Long", "Nom Long", "nom_long"]));
+      const community = cleanDimensionValue(getFirstValue(row, ["Communauté Nationale", "Communaute_Nationale", "Communauté_Nationale", "Communaute Nationale"]));
+      const department = cleanDimensionValue(getFirstValue(row, ["Département", "Departement"]));
+      const deploymentPriority = cleanDimensionValue(getFirstValue(row, ["Priorité Déploiement", "Priorite_Deploiement", "Priorité de déploiement", "Priorite_de_deploiement"]));
+      const matrixProgress = cleanDimensionValue(getFirstValue(row, ["Avancement Matrice de déploiement", "Avancement_Matrice_de_deploiement"]));
+      const deploymentStatus = cleanDimensionValue(getFirstValue(row, ["Statut Déploiement", "Statut_Deploiement", "Statut de déploiement", "Statut_de_deploiement", "Avancement Déploiement", "Avancement_Deploiement"])) || matrixProgress;
       const label = nom || nomLong || `Service #${row.id}`;
       return {
-        id: Number(row.id), nom, nomLong, label,
-        community, department, deploymentPriority, deploymentStatus
+        id: Number(row.id),
+        nom,
+        nomLong,
+        label,
+        community,
+        department,
+        deploymentPriority,
+        deploymentStatus
       };
     }).filter(svc => svc.id && svc.label)
       .sort((a, b) => a.label.localeCompare(b.label, "fr"));
@@ -191,15 +179,17 @@ async function loadServicesReference() {
   }
 }
 
-function serviceLabel(value) {
-  if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "number") return serviceById.get(Number(value))?.label || `Service #${value}`;
-  if (Array.isArray(value)) {
-    const values = value[0] === "L" ? value.slice(1) : value;
-    return values.map(item => serviceLabel(item)).filter(Boolean).join(", ");
-  }
+function listValues(value) {
+  if (!Array.isArray(value)) return [value];
+  return value[0] === "L" ? value.slice(1) : value;
+}
 
-  const text = asText(value);
+function serviceLabel(value) {
+  if (value === null || value === undefined || value === "" || value === 0 || value === "0") return "";
+  if (typeof value === "number") return serviceById.get(Number(value))?.label || `Service #${value}`;
+  if (Array.isArray(value)) return listValues(value).map(serviceLabel).filter(Boolean).join(", ");
+
+  const text = String(value);
   const maybeId = Number(text);
   if (Number.isInteger(maybeId) && serviceById.has(maybeId)) {
     return serviceById.get(maybeId).label;
@@ -208,9 +198,9 @@ function serviceLabel(value) {
 }
 
 function rawServiceId(value) {
-  if (value === null || value === undefined || value === "") return "";
+  if (value === null || value === undefined || value === "" || value === 0 || value === "0") return "";
   if (typeof value === "number") return Number(value);
-  const text = asText(value);
+  const text = String(value);
   const numeric = Number(text);
   if (Number.isInteger(numeric) && serviceById.has(numeric)) return numeric;
   const fromLabel = serviceIdByLabel.get(normalizeKey(text));
@@ -269,6 +259,21 @@ function asText(value) {
   if (Array.isArray(value)) return asArray(value).join(", ");
   if (value instanceof Date) return dateToISO(value);
   return String(value);
+}
+
+function cleanDimensionValue(value) {
+  const text = asText(value).trim();
+  return text === "0" ? "" : text;
+}
+
+function updateRefreshLabel(message = "") {
+  const node = $("lastRefresh");
+  if (!node) return;
+  if (message) {
+    node.textContent = message;
+    return;
+  }
+  node.textContent = `Actualisé à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function dateToISO(value) {
@@ -376,6 +381,7 @@ function isOverdue(value, status) {
   return d.getTime() < today.getTime();
 }
 
+
 function truncate(text, max = 155) {
   const s = asText(text).trim();
   return s.length > max ? s.slice(0, max).trim() + "…" : s;
@@ -387,141 +393,202 @@ function uniqueValues(records, field, splitList = false) {
     if (splitList) {
       asArray(r[field]).forEach(v => set.add(v));
     } else {
-      const v = asText(r[field]).trim();
+      const v = cleanDimensionValue(r[field]);
       if (v) set.add(v);
     }
   });
   return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
-function fillSelect(selectId, values, firstLabel, currentValue = "") {
+function setSelectOptions(selectId, values, firstLabel) {
   const select = $(selectId);
-  if (!select) return "";
+  const current = select.value;
   select.replaceChildren();
-
   const first = document.createElement("option");
   first.value = "";
   first.textContent = firstLabel;
   select.appendChild(first);
-
-  values.forEach(item => {
+  values.forEach(v => {
     const option = document.createElement("option");
-    if (typeof item === "object") {
-      option.value = String(item.value);
-      option.textContent = item.label;
-    } else {
-      option.value = String(item);
-      option.textContent = String(item);
-    }
+    option.value = v;
+    option.textContent = v;
     select.appendChild(option);
   });
-
-  const validValues = new Set([...select.options].map(option => option.value));
-  const requested = String(currentValue || "");
-  select.value = validValues.has(requested) ? requested : "";
-  return select.value;
+  select.value = values.includes(current) ? current : "";
 }
 
-function serviceMatchesDimensionFilters(service, ignoredField = "") {
-  if (!service) return false;
-  if (ignoredField !== "community" && state.community && service.community !== state.community) return false;
-  if (ignoredField !== "department" && state.department && service.department !== state.department) return false;
-  if (ignoredField !== "deploymentStatus" && state.deploymentStatus && service.deploymentStatus !== state.deploymentStatus) return false;
-  if (ignoredField !== "deploymentPriority" && state.deploymentPriority && service.deploymentPriority !== state.deploymentPriority) return false;
-  return true;
-}
-
-function serviceFromToken(token) {
-  if (token === null || token === undefined || token === "") return null;
-  const numeric = Number(token);
-  if (Number.isInteger(numeric) && serviceById.has(numeric)) return serviceById.get(numeric);
-  const id = serviceIdByLabel.get(normalizeKey(serviceLabel(token)));
-  return id ? serviceById.get(id) : null;
-}
-
-function rawServiceTokens(raw) {
-  if (Array.isArray(raw)) return raw[0] === "L" ? raw.slice(1) : raw;
+function serviceTokens(raw) {
   if (raw === null || raw === undefined || raw === "") return [];
-  return String(raw).split(/[,;\n|]+/).map(value => value.trim()).filter(Boolean);
+  if (typeof raw === "number") return [String(raw), normalizeKey(serviceLabel(raw))];
+  if (Array.isArray(raw)) return listValues(raw).flatMap(serviceTokens);
+  return String(raw).split(/[,;\n|]+/).map(token => normalizeKey(token.trim())).filter(Boolean);
 }
 
 function rawIsCommonService(raw) {
-  return rawServiceTokens(raw).some(token => normalizeKey(serviceLabel(token)) === "tous");
+  return serviceTokens(raw).some(token => ["tous", "toutes", "all"].includes(token));
 }
 
-function recordMatchesServiceFilters(record) {
-  const tokens = rawServiceTokens(record.ServiceUtilisateurRaw);
-  const isCommon = rawIsCommonService(record.ServiceUtilisateurRaw);
+function rawAppliesToService(raw, service) {
+  if (!service) return true;
+  const tokens = serviceTokens(raw);
+  if (tokens.some(token => ["tous", "toutes", "all"].includes(token))) return true;
+  const keys = new Set([
+    String(service.id),
+    normalizeKey(service.label),
+    normalizeKey(service.nom),
+    normalizeKey(service.nomLong)
+  ].filter(Boolean));
+  return tokens.some(token => keys.has(token));
+}
 
-  if (state.serviceId) {
-    if (isCommon) return true;
-    const selected = Number(state.serviceId);
-    const selectedLabel = serviceById.get(selected)?.label || "";
-    return tokens.some(token => {
-      const service = serviceFromToken(token);
-      return service ? service.id === selected : normalizeKey(serviceLabel(token)) === normalizeKey(selectedLabel);
-    });
+function serviceMatchesDimensionFilters(service) {
+  if (state.community && service.community !== state.community) return false;
+  if (state.department && service.department !== state.department) return false;
+  if (state.deploymentStatus && service.deploymentStatus !== state.deploymentStatus) return false;
+  if (state.deploymentPriority && service.deploymentPriority !== state.deploymentPriority) return false;
+  return true;
+}
+
+function selectedService() {
+  return state.serviceId ? serviceById.get(Number(state.serviceId)) || null : null;
+}
+
+function recordMatchesServiceScope(record) {
+  const selected = selectedService();
+  if (selected) return serviceMatchesDimensionFilters(selected) && rawAppliesToService(record.ServiceUtilisateurRaw, selected);
+
+  const hasDimensions = Boolean(state.community || state.department || state.deploymentStatus || state.deploymentPriority);
+  if (!hasDimensions) return true;
+  if (rawIsCommonService(record.ServiceUtilisateurRaw)) return true;
+  return services.some(service => serviceMatchesDimensionFilters(service) && rawAppliesToService(record.ServiceUtilisateurRaw, service));
+}
+
+function recordMatchesWorkFilters(record) {
+  const query = normalizeKey(state.search);
+  if (query) {
+    const haystack = normalizeKey([
+      titleFor(record), record.ServiceUtilisateur, record.Category, record.CaseType,
+      record.Description, record.Priority, asText(record.Assignees), record.Comment,
+      record.RTU, record.Sprint, record.Requester
+    ].join(" "));
+    if (!haystack.includes(query)) return false;
   }
-
-  const hasDimensionFilter = Boolean(state.community || state.department || state.deploymentStatus || state.deploymentPriority);
-  if (!hasDimensionFilter) return true;
-  if (isCommon) return true;
-
-  return tokens.some(token => serviceMatchesDimensionFilters(serviceFromToken(token)));
+  if (state.category && record.Category !== state.category) return false;
+  if (state.caseType && record.CaseType !== state.caseType) return false;
+  if (state.priority && record.Priority !== state.priority) return false;
+  if (state.assignee && !asArray(record.Assignees).includes(state.assignee)) return false;
+  return true;
 }
 
-function recordsInServiceScope() {
-  return allRecords.filter(recordMatchesServiceFilters);
-}
-
-function refreshServiceFilterOptions() {
-  const communityValues = uniqueValues(services.filter(service => serviceMatchesDimensionFilters(service, "community")), "community");
-  state.community = fillSelect("communityFilter", communityValues, "Toutes les communautés", state.community);
-
-  const departmentValues = uniqueValues(services.filter(service => serviceMatchesDimensionFilters(service, "department")), "department");
-  state.department = fillSelect("departmentFilter", departmentValues, "Tous les départements", state.department);
-
-  const deploymentStatuses = uniqueValues(services.filter(service => serviceMatchesDimensionFilters(service, "deploymentStatus")), "deploymentStatus");
-  state.deploymentStatus = fillSelect("deploymentStatusFilter", deploymentStatuses, "Tous les statuts", state.deploymentStatus);
-
-  const deploymentPriorities = uniqueValues(services.filter(service => serviceMatchesDimensionFilters(service, "deploymentPriority")), "deploymentPriority");
-  state.deploymentPriority = fillSelect("deploymentPriorityFilter", deploymentPriorities, "Toutes les priorités", state.deploymentPriority);
-
-  const availableServices = services.filter(service => serviceMatchesDimensionFilters(service));
-  const serviceOptions = availableServices.map(service => ({ value: service.id, label: service.label }));
-  state.serviceId = fillSelect("serviceFilter", serviceOptions, "Tous les services utilisateurs", state.serviceId);
-}
-
-function refreshWorkFilterOptions() {
-  const scoped = recordsInServiceScope();
-  state.category = fillSelect("categoryFilter", uniqueValues(scoped, "Category"), "Toutes les catégories", state.category);
-  state.caseType = fillSelect("caseFilter", uniqueValues(scoped, "CaseType"), "Tous les cas", state.caseType);
-  state.priority = fillSelect("priorityFilter", uniqueValues(scoped, "Priority"), "Toutes les priorités", state.priority);
-  state.assignee = fillSelect("assigneeFilter", uniqueValues(scoped, "Assignees", true), "Toutes les personnes", state.assignee);
-}
-
-function refreshFilterOptions() {
-  refreshServiceFilterOptions();
-  refreshWorkFilterOptions();
+function recordsForCurrentServiceScope() {
+  return allRecords.filter(recordMatchesServiceScope);
 }
 
 function filteredRecords() {
-  const search = normalizeKey(state.search);
-  return allRecords.filter(record => {
-    if (!recordMatchesServiceFilters(record)) return false;
+  return allRecords.filter(record => recordMatchesServiceScope(record) && recordMatchesWorkFilters(record));
+}
 
-    const searchable = normalizeKey([
-      titleFor(record), record.ServiceUtilisateur, record.Category, record.CaseType, record.Description,
-      record.Priority, asText(record.Assignees), record.Comment, record.RTU, record.Sprint, record.Requester
-    ].join(" "));
+function availableServicesForPicker() {
+  let candidates = services.filter(serviceMatchesDimensionFilters);
+  const hasWorkFilters = Boolean(state.search || state.category || state.caseType || state.priority || state.assignee);
+  if (hasWorkFilters) {
+    candidates = candidates.filter(service => allRecords.some(record => rawAppliesToService(record.ServiceUtilisateurRaw, service) && recordMatchesWorkFilters(record)));
+  }
+  return candidates;
+}
 
-    if (search && !searchable.includes(search)) return false;
-    if (state.category && record.Category !== state.category) return false;
-    if (state.caseType && record.CaseType !== state.caseType) return false;
-    if (state.priority && record.Priority !== state.priority) return false;
-    if (state.assignee && !asArray(record.Assignees).includes(state.assignee)) return false;
-    return true;
-  });
+function refreshDimensionOptions() {
+  setSelectOptions("communityFilter", uniqueValues(services, "community"), "Toutes les communautés");
+  setSelectOptions("departmentFilter", uniqueValues(services, "department"), "Tous les départements");
+  setSelectOptions("deploymentStatusFilter", uniqueValues(services, "deploymentStatus"), "Tous les statuts");
+  setSelectOptions("deploymentPriorityFilter", uniqueValues(services, "deploymentPriority"), "Toutes les priorités");
+}
+
+function refreshWorkFilterOptions() {
+  const scoped = recordsForCurrentServiceScope();
+  setSelectOptions("categoryFilter", uniqueValues(scoped, "Category"), "Toutes les catégories");
+  setSelectOptions("caseFilter", uniqueValues(scoped, "CaseType"), "Tous les cas");
+  setSelectOptions("priorityFilter", uniqueValues(scoped, "Priority"), "Toutes les priorités");
+  setSelectOptions("assigneeFilter", uniqueValues(scoped, "Assignees", true), "Toutes les personnes assignées");
+}
+
+function refreshFilterOptions() {
+  refreshDimensionOptions();
+  refreshWorkFilterOptions();
+}
+
+function serviceMeta(service) {
+  return [service.community, service.department].filter(Boolean).join(" · ");
+}
+
+function renderServiceDropdown() {
+  const dropdown = $("serviceDropdown");
+  if (!dropdown) return;
+  const input = $("serviceSearch");
+  const query = normalizeKey(input.value);
+  let candidates = availableServicesForPicker();
+  if (query && !state.serviceId) {
+    candidates = candidates.filter(service => normalizeKey([service.label, service.nomLong, service.community, service.department].join(" ")).includes(query));
+  }
+  candidates = candidates.slice(0, 100);
+  dropdown.replaceChildren();
+  serviceComboIndex = -1;
+
+  if (!candidates.length) {
+    const empty = document.createElement("div");
+    empty.className = "combo-empty";
+    empty.textContent = "Aucun service correspondant";
+    dropdown.appendChild(empty);
+  } else {
+    candidates.forEach(service => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "combo-item";
+      button.dataset.serviceId = String(service.id);
+      const name = document.createElement("span");
+      name.className = "combo-item__name";
+      name.textContent = service.label;
+      const meta = document.createElement("span");
+      meta.className = "combo-item__meta";
+      meta.textContent = serviceMeta(service);
+      button.append(name, meta);
+      button.addEventListener("mousedown", event => event.preventDefault());
+      button.addEventListener("click", () => selectService(service.id));
+      dropdown.appendChild(button);
+    });
+  }
+  dropdown.classList.remove("hidden");
+  input.setAttribute("aria-expanded", "true");
+}
+
+function closeServiceDropdown() {
+  $("serviceDropdown")?.classList.add("hidden");
+  $("serviceSearch")?.setAttribute("aria-expanded", "false");
+  serviceComboIndex = -1;
+}
+
+function selectService(serviceId) {
+  const service = serviceById.get(Number(serviceId));
+  state.serviceId = service ? Number(service.id) : null;
+  $("serviceSearch").value = service?.label || "";
+  $("clearServiceBtn").classList.toggle("hidden", !service);
+  closeServiceDropdown();
+  refreshWorkFilterOptions();
+  renderBoard();
+}
+
+function clearSelectedService() {
+  state.serviceId = null;
+  $("serviceSearch").value = "";
+  $("clearServiceBtn").classList.add("hidden");
+  closeServiceDropdown();
+  refreshWorkFilterOptions();
+  renderBoard();
+}
+
+function updateSelectedServiceValidity() {
+  const service = selectedService();
+  if (service && !serviceMatchesDimensionFilters(service)) clearSelectedService();
 }
 
 function sortRecords(records) {
@@ -550,11 +617,11 @@ function makeEl(tag, className, text) {
 
 function renderKpis(records) {
   const active = records.filter(record => record.Status !== "Déployé");
-  const p0p1 = active.filter(record => ["P0", "P1"].includes(asText(record.Priority).trim())).length;
+  const p0p1 = active.filter(record => ["P0", "P1"].includes(record.Priority)).length;
   const overdue = active.filter(record => isOverdue(record.DesiredDate, record.Status)).length;
 
   const items = [
-    ["Sujets en cours", active.length, "kpi--neutral"],
+    ["Sujets en cours", active.length, "kpi--info"],
     ["P0 ou P1", p0p1, "kpi--warning"],
     ["En retard", overdue, "kpi--danger"]
   ];
@@ -586,10 +653,7 @@ function renderBoard() {
     lane.addEventListener("drop", onLaneDrop);
 
     const header = makeEl("div", "lane__header");
-    const title = makeEl("div", "lane__title");
-    const dot = makeEl("span", "lane__dot");
-    title.appendChild(dot);
-    title.appendChild(document.createTextNode(status));
+    const title = makeEl("div", "lane__title", status);
     const count = makeEl("div", "lane__count", String(laneRecords.length));
     header.appendChild(title);
     header.appendChild(count);
@@ -882,46 +946,75 @@ function renderMappingMessage() {
   board.appendChild(box);
 }
 
-function handleServiceDimensionChange(key, value) {
-  state[key] = value;
-  refreshServiceFilterOptions();
-  refreshWorkFilterOptions();
-  renderBoard();
-}
-
 function bindEvents() {
   $("newCardBtn").addEventListener("click", () => openDrawer(null));
   $("refreshBtn").addEventListener("click", () => window.location.reload());
-
   $("toggleFiltersBtn").addEventListener("click", () => {
     state.filtersHidden = !state.filtersHidden;
-    $("filterDeck").classList.toggle("is-collapsed", state.filtersHidden);
+    $("filtersPanel").classList.toggle("filters-hidden", state.filtersHidden);
     $("toggleFiltersBtn").textContent = state.filtersHidden ? "Afficher les filtres" : "Masquer les filtres";
   });
-
   $("compactBtn").addEventListener("click", () => {
     state.compact = !state.compact;
     document.body.classList.toggle("compact", state.compact);
     $("compactBtn").textContent = state.compact ? "Vue détaillée" : "Vue compacte";
   });
-
   $("closeDrawerBtn").addEventListener("click", closeDrawer);
   $("drawerBackdrop").addEventListener("click", closeDrawer);
   $("saveCardBtn").addEventListener("click", saveDrawer);
   $("deleteCardBtn").addEventListener("click", deleteCurrentCard);
 
-  $("serviceFilter").addEventListener("change", event => {
-    state.serviceId = event.target.value;
-    refreshWorkFilterOptions();
-    renderBoard();
+  $("serviceSearch").addEventListener("focus", renderServiceDropdown);
+  $("serviceSearch").addEventListener("click", renderServiceDropdown);
+  $("serviceSearch").addEventListener("input", event => {
+    const selected = selectedService();
+    if (selected && event.target.value !== selected.label) {
+      state.serviceId = null;
+      $("clearServiceBtn").classList.add("hidden");
+      refreshWorkFilterOptions();
+      renderBoard();
+    }
+    renderServiceDropdown();
   });
-  $("communityFilter").addEventListener("change", event => handleServiceDimensionChange("community", event.target.value));
-  $("departmentFilter").addEventListener("change", event => handleServiceDimensionChange("department", event.target.value));
-  $("deploymentStatusFilter").addEventListener("change", event => handleServiceDimensionChange("deploymentStatus", event.target.value));
-  $("deploymentPriorityFilter").addEventListener("change", event => handleServiceDimensionChange("deploymentPriority", event.target.value));
+  $("serviceSearch").addEventListener("keydown", event => {
+    const items = [...$("serviceDropdown").querySelectorAll(".combo-item")];
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!items.length) return;
+      serviceComboIndex = event.key === "ArrowDown"
+        ? Math.min(serviceComboIndex + 1, items.length - 1)
+        : Math.max(serviceComboIndex - 1, 0);
+      items.forEach((item, index) => item.classList.toggle("is-active", index === serviceComboIndex));
+      items[serviceComboIndex]?.scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" && serviceComboIndex >= 0) {
+      event.preventDefault();
+      selectService(Number(items[serviceComboIndex].dataset.serviceId));
+    } else if (event.key === "Escape") {
+      closeServiceDropdown();
+    }
+  });
+  $("clearServiceBtn").addEventListener("click", clearSelectedService);
+
+  [
+    ["communityFilter", "community"],
+    ["departmentFilter", "department"],
+    ["deploymentStatusFilter", "deploymentStatus"],
+    ["deploymentPriorityFilter", "deploymentPriority"]
+  ].forEach(([id, key]) => {
+    $(id).addEventListener("change", event => {
+      state[key] = event.target.value;
+      updateSelectedServiceValidity();
+      refreshWorkFilterOptions();
+      renderServiceDropdown();
+      closeServiceDropdown();
+      renderBoard();
+    });
+  });
 
   $("searchInput").addEventListener("input", event => {
     state.search = event.target.value;
+    renderServiceDropdown();
+    closeServiceDropdown();
     renderBoard();
   });
   $("sortSelect").addEventListener("change", event => {
@@ -930,23 +1023,37 @@ function bindEvents() {
   });
   $("categoryFilter").addEventListener("change", event => {
     state.category = event.target.value;
+    renderServiceDropdown();
+    closeServiceDropdown();
     renderBoard();
   });
   $("caseFilter").addEventListener("change", event => {
     state.caseType = event.target.value;
+    renderServiceDropdown();
+    closeServiceDropdown();
     renderBoard();
   });
   $("priorityFilter").addEventListener("change", event => {
     state.priority = event.target.value;
+    renderServiceDropdown();
+    closeServiceDropdown();
     renderBoard();
   });
   $("assigneeFilter").addEventListener("change", event => {
     state.assignee = event.target.value;
+    renderServiceDropdown();
+    closeServiceDropdown();
     renderBoard();
   });
 
+  document.addEventListener("click", event => {
+    if (!$("servicePicker").contains(event.target)) closeServiceDropdown();
+  });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeDrawer();
+    if (event.key === "Escape") {
+      closeServiceDropdown();
+      closeDrawer();
+    }
   });
 }
 
@@ -955,6 +1062,7 @@ bindEvents();
 grist.onRecords(async (data) => {
   const mapped = grist.mapColumnNames(data);
   if (!mapped) {
+    updateRefreshLabel("Configuration requise");
     renderMappingMessage();
     return;
   }
@@ -963,7 +1071,13 @@ grist.onRecords(async (data) => {
 
   allRecords = normalizeIncoming(mapped).map(normalizeRecord).filter(r => r.id !== undefined && r.id !== null);
   refreshFilterOptions();
+  const selected = selectedService();
+  if (selected) {
+    $("serviceSearch").value = selected.label;
+    $("clearServiceBtn").classList.remove("hidden");
+  }
   renderBoard();
+  updateRefreshLabel();
 
   if (servicesLoadError) {
     console.warn(servicesLoadError);

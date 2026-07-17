@@ -1,61 +1,42 @@
-# Dashboard EMM — V3.3
+# Grist Dashboard EMM — V3.4
 
-Widget Kanban éditable pour la table `B_EMM` dans Grist.
+Widget Grist éditable pour piloter la table `B_EMM` sous forme de Kanban.
 
-## Évolutions de cette version
+## Évolutions V3.4
 
-### Filtres en trois lignes
+- Harmonisation visuelle avec le Dashboard Service Utilisateur :
+  - même typographie et mêmes tailles ;
+  - mêmes espacements, rayons, bordures et ombres ;
+  - même style de boutons, listes déroulantes, filtres et KPI ;
+  - cartes et colonnes Kanban rendues plus sobres.
+- Le filtre `Service utilisateur` utilise la même barre de recherche avec autocomplétion que le Dashboard Service Utilisateur.
+- Les valeurs vides stockées sous la forme `0` dans `Priorité Déploiement` sont ignorées et ne sont plus proposées dans la liste.
+- Ajout de l’indication `Actualisé à HH:MM` à côté du titre.
+- KPI conservés :
+  - `Sujets en cours` ;
+  - `P0 ou P1` ;
+  - `En retard`.
+- Conservation des filtres du référentiel services et des filtres opérationnels EMM.
+- Conservation de l’édition, de la création, de la suppression et du drag & drop avec mise à jour partielle sécurisée.
 
-1. **Filtres du référentiel des services utilisateurs** :
-   - Service utilisateur ;
-   - Communauté ;
-   - Département ;
-   - Statut de déploiement ;
-   - Priorité de déploiement.
+## Fichiers
 
-   Les quatre dernières informations sont lues dans `REF_Services Utilisateurs`. Si aucune colonne explicite `Statut Déploiement` n'est trouvée, le widget utilise `Avancement Matrice de déploiement`.
-
-2. **Filtres des sujets EMM** :
-   - recherche par mot-clé ;
-   - catégorie ;
-   - cas ;
-   - priorité ;
-   - personne assignée.
-
-   Le filtre Sprint a été retiré du menu. Le champ Sprint reste disponible dans la fiche d'édition d'une carte.
-
-3. **Actions d'affichage** :
-   - tri ;
-   - masquer / afficher les filtres ;
-   - vue compacte / détaillée.
-
-### Indicateurs
-
-Les KPI sont placés sous les filtres et utilisent le même style que le Dashboard Service Utilisateur :
-
-- `Sujets en cours` : cartes dont le statut n'est pas `Déployé` ;
-- `P0 ou P1` : cartes P0/P1 non déployées ;
-- `En retard` : cartes non déployées dont la date souhaitée est passée.
-
-L'indicateur `À 7 jours` a été supprimé.
-
-### Design
-
-- Couleurs métier réservées aux priorités et aux échéances en retard.
-- Catégories, cas et colonnes de statut affichés dans des tons neutres.
-- Listes déroulantes modernisées.
-- Bouton `Nouvelle carte` légèrement assombri.
-- Conservation du glisser-déposer, de l'édition latérale et des correctifs de mise à jour partielle.
-
-## Installation
-
-Déposer à la racine d'un dépôt GitHub Pages :
+Déposer à la racine du dépôt GitHub Pages :
 
 - `index.html`
 - `styles.css`
 - `app.js`
+- `README.md`
 - `.nojekyll`
 
-Configurer ensuite le custom widget Grist avec l'URL GitHub Pages et accorder `Full document access`.
+## Accès Grist
 
-Le mapping des colonnes de `B_EMM` reste identique à la version précédente. Le champ `Service Utilisateur` accepte une colonne texte ou une référence Grist.
+Le widget modifie les données sources et lit le référentiel des services. Il nécessite donc `Full document access`.
+
+## Cache
+
+Après publication, utiliser temporairement une URL du type :
+
+```text
+https://<compte>.github.io/<repo>/?v=3.4
+```
