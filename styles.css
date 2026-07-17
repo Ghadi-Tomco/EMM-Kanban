@@ -407,19 +407,14 @@ input:focus, select:focus, textarea:focus, .combobox-wrap:focus-within input {
   .drawer__buttons .btn { flex: 1; }
 }
 
-/* V3.5 — filter panel unified with the Service Dashboard */
+/* V3.5 — filtres unifiés sur fond blanc et espacement conservé en vue compacte */
 .filters-panel {
   gap: 0;
   padding: 12px;
-  background: #fff;
-}
-
-.filters-content {
-  gap: 0;
+  background: #ffffff;
 }
 
 .filter-row {
-  gap: 10px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -442,17 +437,56 @@ input:focus, select:focus, textarea:focus, .combobox-wrap:focus-within input {
 .filter-actions {
   border-top: 1px solid #edf0f4;
   margin-top: 11px;
-  padding: 11px 1px 0;
+  padding: 11px 0 0;
 }
 
-.filters-panel.filters-hidden .filter-actions {
-  border-top: 0;
-  margin-top: 0;
-  padding-top: 0;
-}
-
-/* The KPI bar is hidden in compact mode; preserve the visual breathing room
-   that it normally creates between the filters and the Kanban. */
+/* Lorsque les KPI sont masqués par la vue compacte, conserver une respiration
+   visible entre le panneau de filtres et le Kanban. */
 .compact .board {
   margin-top: 12px;
+}
+
+/* V3.6 — recherche opérationnelle élargie et filtres secondaires plus compacts */
+.filter-row--work {
+  grid-template-columns: minmax(360px, 2fr) repeat(4, minmax(105px, .55fr));
+}
+
+.filter-row--work .compact-filter--search {
+  min-width: 360px;
+}
+
+.filter-row--work .compact-filter:not(.compact-filter--search) {
+  min-width: 0;
+}
+
+.filter-row--work select {
+  padding-left: 9px;
+  padding-right: 30px;
+  font-size: 12px;
+}
+
+@media (max-width: 1380px) {
+  .filter-row--work {
+    grid-template-columns: minmax(310px, 1.85fr) repeat(4, minmax(100px, .52fr));
+  }
+  .filter-row--work .compact-filter--search { min-width: 310px; }
+}
+
+@media (max-width: 1180px) {
+  .filter-row--work {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+  .filter-row--work .compact-filter--search {
+    grid-column: span 2;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .filter-row--work {
+    grid-template-columns: 1fr;
+  }
+  .filter-row--work .compact-filter--search {
+    grid-column: auto;
+  }
 }

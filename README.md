@@ -1,15 +1,22 @@
-# Grist Dashboard EMM — V3.5
+# Grist Dashboard EMM — V3.6
 
 Widget Grist éditable pour piloter la table `B_EMM` sous forme de Kanban.
 
-## Évolutions V3.5
+## Évolution V3.6
 
-- Le panneau de filtres reprend le rendu du Dashboard Service Utilisateur :
-  - un seul conteneur blanc ;
-  - suppression des fonds colorés par ligne ;
-  - séparateurs gris entre les filtres du référentiel, les filtres EMM et les options d’affichage.
-- La vue compacte conserve désormais un espacement clair entre le panneau de filtres et le Kanban, même lorsque les KPI sont masqués.
-- Toutes les fonctionnalités de la V3.4 sont conservées.
+- barre `Rechercher un mot clé` élargie sur la deuxième ligne de filtres ;
+- largeur alignée sur la logique de mise en page du Dashboard Service Utilisateur ;
+- filtres `Catégorie`, `Cas`, `Priorité` et `Assignée à` rendus plus compacts ;
+- comportement responsive conservé : la recherche occupe toute la ligne sur les écrans intermédiaires et les filtres repassent sur une colonne sur mobile.
+
+## Fonctionnalités conservées
+
+- filtres du référentiel des services utilisateurs ;
+- KPI `Sujets en cours`, `P0 ou P1` et `En retard` ;
+- création, édition et suppression de cartes ;
+- drag & drop avec mise à jour partielle sécurisée ;
+- vue compacte ;
+- indication `Actualisé à HH:MM`.
 
 ## Fichiers
 
@@ -23,12 +30,12 @@ Déposer à la racine du dépôt GitHub Pages :
 
 ## Accès Grist
 
-Le widget modifie les données sources et lit le référentiel des services. Il nécessite donc `Full document access`.
+Le widget modifie les données sources et lit le référentiel des services. Il nécessite `Full document access`.
 
 ## Cache
 
 Après publication, utiliser temporairement une URL du type :
 
 ```text
-https://<compte>.github.io/<repo>/?v=3.5
+https://<compte>.github.io/<repo>/?v=3.6
 ```
