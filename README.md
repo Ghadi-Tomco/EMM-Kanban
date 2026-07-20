@@ -1,26 +1,50 @@
-# Grist Dashboard EMM — V3.6
+# Grist Dashboard EMM — V3.7
 
 Widget Grist éditable pour piloter la table `B_EMM` sous forme de Kanban.
 
-## Évolution V3.6
+## Schéma pris en charge
 
-- barre `Rechercher un mot clé` élargie sur la deuxième ligne de filtres ;
-- largeur alignée sur la logique de mise en page du Dashboard Service Utilisateur ;
-- filtres `Catégorie`, `Cas`, `Priorité` et `Assignée à` rendus plus compacts ;
-- comportement responsive conservé : la recherche occupe toute la ligne sur les écrans intermédiaires et les filtres repassent sur une colonne sur mobile.
+- Service Utilisateur
+- Catégorie
+- Cas
+- Description
+- Date souhaitée
+- Prio
+- Modifée le
+- Statut
+- Assignée à
+- Commentaire
+- Cible
+- RTU
+- Créée par
+- Créé le
+- CP/Demandeur
+- Service
 
-## Fonctionnalités conservées
+La colonne `Sprint` n'est plus utilisée.
 
-- filtres du référentiel des services utilisateurs ;
-- KPI `Sujets en cours`, `P0 ou P1` et `En retard` ;
-- création, édition et suppression de cartes ;
-- drag & drop avec mise à jour partielle sécurisée ;
-- vue compacte ;
-- indication `Actualisé à HH:MM`.
+## Statuts Kanban
+
+- Nouveau
+- En attente CU
+- En cours DUD
+- En cours DT
+- En conception
+- Terminé
+
+## Compatibilité des types Grist
+
+Aucun type de colonne n'est imposé dans le mapping. Grist propose donc toute colonne,
+qu'elle soit Texte, Date, DateTime, Choice, ChoiceList, Référence ou Liste de références.
+Le widget charge les métadonnées de la table sélectionnée pour afficher les libellés des
+références et convertir correctement les valeurs lors des mises à jour.
+
+## Dates de pilotage
+
+La colonne `Cible` est utilisée en priorité pour le tri par échéance et le calcul des retards.
+Lorsque `Cible` est vide, le widget utilise `Date souhaitée`.
 
 ## Fichiers
-
-Déposer à la racine du dépôt GitHub Pages :
 
 - `index.html`
 - `styles.css`
@@ -30,12 +54,11 @@ Déposer à la racine du dépôt GitHub Pages :
 
 ## Accès Grist
 
-Le widget modifie les données sources et lit le référentiel des services. Il nécessite `Full document access`.
+Le widget modifie les données sources et lit les référentiels des colonnes de référence. Il
+nécessite `Full document access`.
 
 ## Cache
 
-Après publication, utiliser temporairement une URL du type :
-
 ```text
-https://<compte>.github.io/<repo>/?v=3.6
+https://<compte>.github.io/<repo>/?v=3.7
 ```

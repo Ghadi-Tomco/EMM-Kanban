@@ -1,11 +1,10 @@
 const STATUSES = [
   "Nouveau",
+  "En attente CU",
   "En cours DUD",
   "En cours DT",
-  "En développement",
-  "En Test",
-  "En Test CU",
-  "Déployé"
+  "En conception",
+  "Terminé"
 ];
 
 
@@ -16,23 +15,24 @@ const PRIORITY_RANK = {
   "P2": 2,
   "Moyenne": 2,
   "P3": 3,
-  "Basse": 3
+  "Basse": 3,
+  "P4": 4
 };
 
 const COLUMNS = [
-  { name: "Title", title: "Service", type: "Text" },
-  { name: "ServiceUtilisateur", title: "Service Utilisateur", type: "Text,Ref" },
-  { name: "Category", title: "Catégorie", type: "Text" },
-  { name: "CaseType", title: "Cas", type: "Text" },
-  { name: "Description", title: "Description", type: "Text" },
+  { name: "Title", title: "Service" },
+  { name: "ServiceUtilisateur", title: "Service Utilisateur" },
+  { name: "Category", title: "Catégorie" },
+  { name: "CaseType", title: "Cas" },
+  { name: "Description", title: "Description" },
   { name: "DesiredDate", title: "Date souhaitée" },
-  { name: "Priority", title: "Prio", type: "Text" },
-  { name: "ModifiedAt", title: "Modifiée le" },
-  { name: "Status", title: "Statut", type: "Text" },
+  { name: "Priority", title: "Prio" },
+  { name: "ModifiedAt", title: "Modifée le" },
+  { name: "Status", title: "Statut" },
   { name: "Assignees", title: "Assignée à" },
-  { name: "Comment", title: "Commentaire", type: "Text" },
+  { name: "Comment", title: "Commentaire" },
+  { name: "Target", title: "Cible", optional: true },
   { name: "RTU", title: "RTU", optional: true },
-  { name: "Sprint", title: "Sprint", optional: true },
   { name: "CreatedBy", title: "Créée par", optional: true },
   { name: "CreatedAt", title: "Créé le", optional: true },
   { name: "Requester", title: "CP/Demandeur", optional: true }
@@ -70,6 +70,16 @@ let serviceById = new Map();
 let serviceIdByLabel = new Map();
 let serviceComboIndex = -1;
 
+// Métadonnées de la table sélectionnée. Elles permettent au widget de lire et
+// d'écrire les mêmes champs qu'ils soient Texte, Date, Choice, Ref ou RefList.
+let currentMappings = {};
+let selectedTableId = "";
+let metadataByTable = new Map();
+let columnMetaById = new Map();
+let fieldMetaByAlias = new Map();
+let referenceCatalogs = new Map();
+let metadataSignature = "";
+
 const SERVICE_TABLE_CANDIDATES = [
   "REF_Services_Utilisateurs",
   "REF_Services Utilisateurs",
@@ -106,6 +116,239 @@ function rowRecordsFromTable(data) {
     });
   }
   return [];
+}
+
+
+function mappedColumnId(alias) {
+  const value = currentMappings?.[alias];
+  if (Array.isArray(value)) return value[0] || "";
+  return value || "";
+}
+
+function fieldMeta(alias) {
+  return fieldMetaByAlias.get(alias) || { type: "Any", colId: mappedColumnId(alias), isFormula: false };
+}
+
+function referenceTarget(type) {
+  const match = /^(?:Ref|RefList):(.+)$/.exec(type || "");
+  return match ? match[1] : "";
+}
+
+function chooseReferenceDisplayColumn(tableId, raw) {
+  const tableMeta = metadataByTable.get(tableId) || new Map();
+  const keys = Object.keys(raw || {}).filter(key => key !== "id");
+
+  for (const meta of fieldMetaByAlias.values()) {
+    if (meta.refTableId === tableId && meta.visibleTableId === tableId && meta.visibleColId && keys.includes(meta.visibleColId)) {
+      return meta.visibleColId;
+    }
+  }
+
+  const aliases = ["nom", "nomlong", "libelle", "valeur", "statut", "intitule", "titre", "name", "label", "code", "email"];
+  for (const alias of aliases) {
+    const found = keys.find(key => normalizeKey(key) === alias || normalizeKey(tableMeta.get(key)?.label) === alias);
+    if (found) return found;
+  }
+
+  return keys.find(key => {
+    const type = tableMeta.get(key)?.type || "";
+    return !type.startsWith("Attachments") && !type.startsWith("Ref:") && !type.startsWith("RefList:");
+  }) || keys[0] || "";
+}
+
+async function loadMappedMetadata(mappings = {}) {
+  currentMappings = mappings || {};
+  try {
+    if ((!currentMappings || !Object.keys(currentMappings).length) && grist.sectionApi?.mappings) {
+      currentMappings = await grist.sectionApi.mappings() || {};
+    }
+
+    const tableOps = grist.getTable();
+    selectedTableId = await tableOps.getTableId();
+    const signature = `${selectedTableId}|${JSON.stringify(currentMappings)}`;
+    if (signature === metadataSignature && fieldMetaByAlias.size) return;
+
+    metadataSignature = signature;
+    metadataByTable = new Map();
+    columnMetaById = new Map();
+    fieldMetaByAlias = new Map();
+    referenceCatalogs = new Map();
+
+    const [tablesRaw, columnsRaw] = await Promise.all([
+      grist.docApi.fetchTable("_grist_Tables"),
+      grist.docApi.fetchTable("_grist_Tables_column")
+    ]);
+    const tables = rowRecordsFromTable(tablesRaw);
+    const columns = rowRecordsFromTable(columnsRaw);
+    const tableNameByMetaId = new Map(tables.map(row => [Number(row.id), row.tableId]));
+
+    columns.forEach(row => {
+      const tableId = tableNameByMetaId.get(Number(row.parentId));
+      if (!tableId) return;
+      const meta = {
+        metaId: Number(row.id),
+        tableId,
+        colId: row.colId,
+        label: row.label || row.colId,
+        type: row.type || "Any",
+        isFormula: Boolean(row.isFormula),
+        visibleColMetaId: Number(row.visibleCol || 0),
+        displayColMetaId: Number(row.displayCol || 0)
+      };
+      columnMetaById.set(meta.metaId, meta);
+      if (!metadataByTable.has(tableId)) metadataByTable.set(tableId, new Map());
+      metadataByTable.get(tableId).set(meta.colId, meta);
+    });
+
+    columnMetaById.forEach(meta => {
+      meta.refTableId = referenceTarget(meta.type);
+      const visible = columnMetaById.get(meta.visibleColMetaId);
+      const display = columnMetaById.get(meta.displayColMetaId);
+      meta.visibleTableId = visible?.tableId || "";
+      meta.visibleColId = visible?.colId || "";
+      meta.displayTableId = display?.tableId || "";
+      meta.displayColId = display?.colId || "";
+    });
+
+    const selectedMeta = metadataByTable.get(selectedTableId) || new Map();
+    COLUMNS.forEach(column => {
+      const colId = mappedColumnId(column.name);
+      fieldMetaByAlias.set(column.name, selectedMeta.get(colId) || { type: "Any", colId, label: column.title, isFormula: false });
+    });
+
+    const targets = new Set([...fieldMetaByAlias.values()].map(meta => meta.refTableId).filter(Boolean));
+    await Promise.all([...targets].map(async tableId => {
+      try {
+        const raw = await grist.docApi.fetchTable(tableId);
+        const rows = rowRecordsFromTable(raw);
+        const displayCol = chooseReferenceDisplayColumn(tableId, raw);
+        const items = rows.map(row => {
+          let label = displayCol ? asText(row[displayCol]).trim() : "";
+          if (!label || label === "0") label = `#${row.id}`;
+          return { id: Number(row.id), label };
+        }).filter(item => item.id);
+        referenceCatalogs.set(tableId, {
+          tableId,
+          displayCol,
+          items,
+          byId: new Map(items.map(item => [item.id, item]))
+        });
+      } catch (error) {
+        console.warn(`Référentiel ${tableId} non chargé`, error);
+      }
+    }));
+  } catch (error) {
+    console.warn("Métadonnées Grist indisponibles", error);
+  }
+}
+
+function displayMappedValue(alias, raw) {
+  if (raw === null || raw === undefined || raw === "" || raw === 0 || raw === "0") return "";
+  const meta = fieldMeta(alias);
+  const type = meta.type || "Any";
+  const target = referenceTarget(type);
+
+  if (target) {
+    const catalog = referenceCatalogs.get(target);
+    const resolveOne = value => {
+      if (value === null || value === undefined || value === "" || value === 0 || value === "0") return "";
+      if (typeof value === "string" && !/^\d+$/.test(value.trim())) return value;
+      const numeric = Number(value);
+      return catalog?.byId.get(numeric)?.label || asText(value);
+    };
+    if (type.startsWith("RefList:")) return listValues(raw).map(resolveOne).filter(Boolean).join(", ");
+    return resolveOne(raw);
+  }
+
+  if (type === "ChoiceList") return listValues(raw).map(asText).filter(Boolean).join(", ");
+  return asText(raw);
+}
+
+function catalogForAlias(alias) {
+  const meta = fieldMeta(alias);
+  const target = referenceTarget(meta.type || "");
+  return target ? referenceCatalogs.get(target) : null;
+}
+
+function matchReferenceValue(alias, label) {
+  const catalog = catalogForAlias(alias);
+  const text = asText(label).trim();
+  if (!text) return 0;
+  const numeric = Number(text);
+  if (Number.isInteger(numeric) && catalog?.byId.has(numeric)) return numeric;
+  const item = catalog?.items.find(entry => normalizeKey(entry.label) === normalizeKey(text));
+  return item?.id || null;
+}
+
+function serializeMappedValue(alias, displayValue) {
+  const meta = fieldMeta(alias);
+  const type = meta.type || "Any";
+  const text = asText(displayValue).trim();
+
+  if (type.startsWith("RefList:")) {
+    if (!text) return ["L"];
+    const labels = text.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean);
+    const ids = labels.map(label => matchReferenceValue(alias, label));
+    const unknown = labels.filter((_, index) => !ids[index]);
+    if (unknown.length) throw new Error(`Valeur(s) inconnue(s) pour ${meta.label || alias} : ${unknown.join(", ")}`);
+    return ["L", ...ids];
+  }
+
+  if (type.startsWith("Ref:")) {
+    if (!text) return 0;
+    const id = matchReferenceValue(alias, text);
+    if (!id) throw new Error(`Valeur inconnue pour ${meta.label || alias} : ${text}`);
+    return id;
+  }
+
+  if (type === "ChoiceList") {
+    return ["L", ...text.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean)];
+  }
+
+  if (type === "Bool") {
+    const normalized = normalizeKey(text);
+    if (["oui", "true", "vrai", "1"].includes(normalized)) return true;
+    if (["non", "false", "faux", "0", ""].includes(normalized)) return false;
+  }
+
+  if (type === "Int" || type === "Numeric") {
+    if (!text) return null;
+    const number = Number(text.replace(",", "."));
+    return Number.isFinite(number) ? number : text;
+  }
+
+  if (type === "Date" || type === "DateTime") {
+    if (!text) return null;
+    return dateToISO(text) || text;
+  }
+
+  return displayValue;
+}
+
+function timestampForAlias(alias) {
+  const type = fieldMeta(alias).type || "Any";
+  if (type === "DateTime") return new Date().toISOString();
+  if (type === "Date") return todayISO();
+  return new Date().toLocaleDateString("fr-FR");
+}
+
+function setupReferenceDatalist(inputId, alias) {
+  const input = $(inputId);
+  if (!input) return;
+  const catalog = catalogForAlias(alias);
+  const old = document.getElementById(`${inputId}_list`);
+  if (old) old.remove();
+  input.removeAttribute("list");
+  if (!catalog?.items?.length) return;
+  const list = document.createElement("datalist");
+  list.id = `${inputId}_list`;
+  catalog.items.forEach(item => {
+    const option = document.createElement("option");
+    option.value = item.label;
+    list.appendChild(option);
+  });
+  document.body.appendChild(list);
+  input.setAttribute("list", list.id);
 }
 
 async function findTableId(candidates, fuzzyNeedle) {
@@ -240,9 +483,12 @@ function populateServiceSelect(record) {
 
 function serviceValueForSave() {
   const value = getValue("fCU");
-  if (!value) return "";
-  const numeric = Number(value);
-  return Number.isInteger(numeric) ? numeric : value;
+  if (!value) return serializeMappedValue("ServiceUtilisateur", "");
+  const service = serviceById.get(Number(value));
+  const metaType = fieldMeta("ServiceUtilisateur").type || "Any";
+  if (metaType.startsWith("RefList:")) return ["L", Number(value)];
+  if (metaType.startsWith("Ref:")) return Number(value);
+  return service?.label || value;
 }
 
 function asArray(value) {
@@ -279,21 +525,36 @@ function updateRefreshLabel(message = "") {
 function dateToISO(value) {
   if (!value) return "";
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (Array.isArray(value)) {
+    if (["D", "DT"].includes(value[0])) return dateToISO(value[1]);
+    return dateToISO(asText(value));
+  }
   if (typeof value === "number" && Number.isFinite(value)) {
     const ms = value > 100000000000 ? value : value * 1000;
     const date = new Date(ms);
     return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
   }
-  const s = String(value);
-  const match = s.match(/\d{4}-\d{2}-\d{2}/);
-  if (match) return match[0];
-  const parsed = Date.parse(s);
+  const text = String(value).trim();
+  if (!text || normalizeKey(text) === "apreciser") return "";
+  const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const french = text.match(/^\s*(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\s*$/);
+  if (french) {
+    const day = String(Number(french[1])).padStart(2, "0");
+    const month = String(Number(french[2])).padStart(2, "0");
+    let year = french[3] ? Number(french[3]) : new Date().getFullYear();
+    if (year < 100) year += 2000;
+    const candidate = `${year}-${month}-${day}`;
+    const parsed = new Date(`${candidate}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? "" : candidate;
+  }
+  const parsed = Date.parse(text);
   return Number.isNaN(parsed) ? "" : new Date(parsed).toISOString().slice(0, 10);
 }
 
 function formatDate(value) {
   const iso = dateToISO(value);
-  if (!iso) return "";
+  if (!iso) return asText(value).trim();
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
@@ -315,28 +576,48 @@ function normalizeIncoming(data) {
   return [];
 }
 
+function canonicalStatus(value) {
+  const key = normalizeKey(value);
+  const byKey = new Map(STATUSES.map(status => [normalizeKey(status), status]));
+  return byKey.get(key) || "Nouveau";
+}
+
 function normalizeRecord(r) {
-  const status = asText(r.Status);
-  const normalizedStatus = STATUSES.includes(status) ? status : "Nouveau";
+  const statusLabel = displayMappedValue("Status", r.Status);
   return {
     id: r.id,
-    Title: asText(r.Title),
+    TitleRaw: r.Title,
+    Title: displayMappedValue("Title", r.Title),
     ServiceUtilisateurRaw: r.ServiceUtilisateur,
-    ServiceUtilisateur: serviceLabel(r.ServiceUtilisateur),
-    Category: asText(r.Category),
-    CaseType: asText(r.CaseType),
-    Description: asText(r.Description),
-    DesiredDate: r.DesiredDate,
-    Priority: asText(r.Priority),
-    ModifiedAt: r.ModifiedAt,
-    Status: normalizedStatus,
-    Assignees: r.Assignees,
-    Comment: asText(r.Comment),
-    RTU: asText(r.RTU),
-    Sprint: asText(r.Sprint),
-    CreatedBy: asText(r.CreatedBy),
-    CreatedAt: r.CreatedAt,
-    Requester: asText(r.Requester)
+    ServiceUtilisateur: serviceLabel(r.ServiceUtilisateur) || displayMappedValue("ServiceUtilisateur", r.ServiceUtilisateur),
+    CategoryRaw: r.Category,
+    Category: displayMappedValue("Category", r.Category),
+    CaseTypeRaw: r.CaseType,
+    CaseType: displayMappedValue("CaseType", r.CaseType),
+    DescriptionRaw: r.Description,
+    Description: displayMappedValue("Description", r.Description),
+    DesiredDateRaw: r.DesiredDate,
+    DesiredDate: displayMappedValue("DesiredDate", r.DesiredDate),
+    PriorityRaw: r.Priority,
+    Priority: displayMappedValue("Priority", r.Priority),
+    ModifiedAtRaw: r.ModifiedAt,
+    ModifiedAt: displayMappedValue("ModifiedAt", r.ModifiedAt),
+    StatusRaw: r.Status,
+    Status: canonicalStatus(statusLabel),
+    AssigneesRaw: r.Assignees,
+    Assignees: displayMappedValue("Assignees", r.Assignees),
+    CommentRaw: r.Comment,
+    Comment: displayMappedValue("Comment", r.Comment),
+    TargetRaw: r.Target,
+    Target: displayMappedValue("Target", r.Target),
+    RTURaw: r.RTU,
+    RTU: displayMappedValue("RTU", r.RTU),
+    CreatedByRaw: r.CreatedBy,
+    CreatedBy: displayMappedValue("CreatedBy", r.CreatedBy),
+    CreatedAtRaw: r.CreatedAt,
+    CreatedAt: displayMappedValue("CreatedAt", r.CreatedAt),
+    RequesterRaw: r.Requester,
+    Requester: displayMappedValue("Requester", r.Requester)
   };
 }
 
@@ -371,8 +652,18 @@ function compareDateDesc(a, b) {
   return db - da;
 }
 
+function trackingDate(record) {
+  return dateToISO(record.Target) ? record.Target : record.DesiredDate;
+}
+
+function trackingDateLabel(record) {
+  if (asText(record.Target).trim()) return { prefix: "Cible", value: record.Target };
+  if (asText(record.DesiredDate).trim()) return { prefix: "Souhaitée", value: record.DesiredDate };
+  return { prefix: "", value: "" };
+}
+
 function isOverdue(value, status) {
-  if (!value || status === "Déployé") return false;
+  if (!value || status === "Terminé") return false;
   const iso = dateToISO(value);
   if (!iso) return false;
   const d = new Date(iso + "T00:00:00");
@@ -469,7 +760,7 @@ function recordMatchesWorkFilters(record) {
     const haystack = normalizeKey([
       titleFor(record), record.ServiceUtilisateur, record.Category, record.CaseType,
       record.Description, record.Priority, asText(record.Assignees), record.Comment,
-      record.RTU, record.Sprint, record.Requester
+      record.RTU, record.Target, record.Requester
     ].join(" "));
     if (!haystack.includes(query)) return false;
   }
@@ -596,10 +887,10 @@ function sortRecords(records) {
   copy.sort((a, b) => {
     if (state.sort === "priority") {
       return (PRIORITY_RANK[a.Priority] ?? 99) - (PRIORITY_RANK[b.Priority] ?? 99)
-        || compareDateAsc(a.DesiredDate, b.DesiredDate)
+        || compareDateAsc(trackingDate(a), trackingDate(b))
         || titleFor(a).localeCompare(titleFor(b), "fr");
     }
-    if (state.sort === "due") return compareDateAsc(a.DesiredDate, b.DesiredDate);
+    if (state.sort === "due") return compareDateAsc(trackingDate(a), trackingDate(b));
     if (state.sort === "modified") return compareDateDesc(a.ModifiedAt, b.ModifiedAt);
     if (state.sort === "created") return compareDateDesc(a.CreatedAt, b.CreatedAt);
     if (state.sort === "title") return titleFor(a).localeCompare(titleFor(b), "fr");
@@ -616,9 +907,9 @@ function makeEl(tag, className, text) {
 }
 
 function renderKpis(records) {
-  const active = records.filter(record => record.Status !== "Déployé");
+  const active = records.filter(record => record.Status !== "Terminé");
   const p0p1 = active.filter(record => ["P0", "P1"].includes(record.Priority)).length;
-  const overdue = active.filter(record => isOverdue(record.DesiredDate, record.Status)).length;
+  const overdue = active.filter(record => isOverdue(trackingDate(record), record.Status)).length;
 
   const items = [
     ["Sujets en cours", active.length, "kpi--info"],
@@ -709,8 +1000,10 @@ function createCard(record) {
 
   const footer = makeEl("div", "card__footer");
   footer.appendChild(makeEl("span", "card__assignee", asText(record.Assignees) || "Non assignée"));
-  const date = formatDate(record.DesiredDate);
-  const dateNode = makeEl("span", `card__date ${isOverdue(record.DesiredDate, record.Status) ? "overdue" : ""}`.trim(), date ? `Échéance ${date}` : "Sans échéance");
+  const tracked = trackingDateLabel(record);
+  const date = formatDate(tracked.value);
+  const dateText = date ? `${tracked.prefix} ${date}` : "Sans date cible";
+  const dateNode = makeEl("span", `card__date ${isOverdue(trackingDate(record), record.Status) ? "overdue" : ""}`.trim(), dateText);
   footer.appendChild(dateNode);
   card.appendChild(footer);
 
@@ -737,7 +1030,7 @@ async function onLaneDrop(e) {
   if (!record || record.Status === newStatus) return;
 
   try {
-    await updateRecord(id, { Status: newStatus, ModifiedAt: todayISO() });
+    await updateRecord(id, { Status: serializeMappedValue("Status", newStatus), ModifiedAt: timestampForAlias("ModifiedAt") });
     showToast(`Statut mis à jour : ${newStatus}`);
   } catch (err) {
     console.error(err);
@@ -781,13 +1074,18 @@ function openDrawer(id = null) {
   setValue("fRTU", record?.RTU || "");
   setValue("fStatus", record?.Status || "Nouveau");
   setValue("fPriority", record?.Priority || "");
-  setValue("fDueDate", dateToISO(record?.DesiredDate));
-  setValue("fSprint", record?.Sprint || "");
-  setValue("fAssignees", asText(record?.Assignees));
+  setValue("fDueDate", record?.DesiredDate || "");
+  setValue("fTarget", record?.Target || "");
+  setValue("fAssignees", record?.Assignees || "");
   setValue("fRequester", record?.Requester || "");
   setValue("fCreatedBy", record?.CreatedBy || "");
   setValue("fDescription", record?.Description || "");
   setValue("fComment", record?.Comment || "");
+
+  [
+    ["fTitle", "Title"], ["fCategory", "Category"], ["fRTU", "RTU"],
+    ["fAssignees", "Assignees"], ["fRequester", "Requester"], ["fCreatedBy", "CreatedBy"]
+  ].forEach(([inputId, alias]) => setupReferenceDatalist(inputId, alias));
 
   const created = record ? formatDate(record.CreatedAt) : "";
   const modified = record ? formatDate(record.ModifiedAt) : "";
@@ -805,20 +1103,6 @@ function closeDrawer() {
   $("drawer").classList.remove("is-open");
   $("drawer").setAttribute("aria-hidden", "true");
   $("drawerBackdrop").classList.add("hidden");
-}
-
-function assigneesForSave(originalValue) {
-  const text = getValue("fAssignees");
-  const values = text.split(",").map(v => v.trim()).filter(Boolean);
-
-  // Texte simple : le plus robuste et recommandé pour cette V2.
-  if (!Array.isArray(originalValue)) return values.join(", ");
-
-  // Choice List Grist : ['L', 'Nom 1', 'Nom 2'].
-  if (originalValue[0] === "L") return ["L", ...values];
-
-  // Autres listes : on renvoie la liste simple. Les Reference Lists nécessiteront une variante dédiée.
-  return values;
 }
 
 function cleanedFields(fields) {
@@ -879,33 +1163,32 @@ async function deleteRecord(id) {
 }
 
 async function saveDrawer() {
-  const existing = currentRecordId ? allRecords.find(r => Number(r.id) === Number(currentRecordId)) : null;
-  const now = todayISO();
-
-  const fields = {
-    Title: getValue("fTitle"),
-    ServiceUtilisateur: serviceValueForSave(),
-    Category: getValue("fCategory"),
-    CaseType: getValue("fCase"),
-    RTU: getValue("fRTU"),
-    Status: getValue("fStatus") || "Nouveau",
-    Priority: getValue("fPriority"),
-    DesiredDate: getValue("fDueDate"),
-    Sprint: getValue("fSprint"),
-    Assignees: assigneesForSave(existing?.Assignees),
-    Requester: getValue("fRequester"),
-    CreatedBy: getValue("fCreatedBy"),
-    Description: getValue("fDescription"),
-    Comment: getValue("fComment"),
-    ModifiedAt: now
-  };
+  const now = timestampForAlias("ModifiedAt");
 
   try {
+    const fields = {
+      Title: serializeMappedValue("Title", getValue("fTitle")),
+      ServiceUtilisateur: serviceValueForSave(),
+      Category: serializeMappedValue("Category", getValue("fCategory")),
+      CaseType: serializeMappedValue("CaseType", getValue("fCase")),
+      RTU: serializeMappedValue("RTU", getValue("fRTU")),
+      Status: serializeMappedValue("Status", getValue("fStatus") || "Nouveau"),
+      Priority: serializeMappedValue("Priority", getValue("fPriority")),
+      DesiredDate: serializeMappedValue("DesiredDate", getValue("fDueDate")),
+      Target: serializeMappedValue("Target", getValue("fTarget")),
+      Assignees: serializeMappedValue("Assignees", getValue("fAssignees")),
+      Requester: serializeMappedValue("Requester", getValue("fRequester")),
+      CreatedBy: serializeMappedValue("CreatedBy", getValue("fCreatedBy")),
+      Description: serializeMappedValue("Description", getValue("fDescription")),
+      Comment: serializeMappedValue("Comment", getValue("fComment")),
+      ModifiedAt: now
+    };
+
     if (currentRecordId) {
       await updateRecord(currentRecordId, fields);
       showToast("Carte mise à jour");
     } else {
-      fields.CreatedAt = now;
+      fields.CreatedAt = timestampForAlias("CreatedAt");
       await createRecord(fields);
       showToast("Carte créée");
     }
@@ -1059,7 +1342,7 @@ function bindEvents() {
 
 bindEvents();
 
-grist.onRecords(async (data) => {
+grist.onRecords(async (data, mappings) => {
   const mapped = grist.mapColumnNames(data);
   if (!mapped) {
     updateRefreshLabel("Configuration requise");
@@ -1067,7 +1350,10 @@ grist.onRecords(async (data) => {
     return;
   }
 
-  await loadServicesReference();
+  await Promise.all([
+    loadServicesReference(),
+    loadMappedMetadata(mappings || {})
+  ]);
 
   allRecords = normalizeIncoming(mapped).map(normalizeRecord).filter(r => r.id !== undefined && r.id !== null);
   refreshFilterOptions();

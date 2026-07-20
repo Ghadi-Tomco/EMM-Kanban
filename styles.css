@@ -308,6 +308,7 @@ input:focus, select:focus, textarea:focus, .combobox-wrap:focus-within input {
 .card.prio-p1::before, .card.prio-moyenne::before { background: var(--orange); }
 .card.prio-p2::before { background: var(--p2); }
 .card.prio-p3::before, .card.prio-basse::before { background: var(--p3); }
+.card.prio-p4::before { background: #94a3b8; }
 .card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .card__title { min-width: 0; color: var(--ink); font-size: 14px; line-height: 1.3; font-weight: 830; overflow-wrap: anywhere; }
 .card__cu { color: #677389; font-size: 12px; font-weight: 700; margin-top: 3px; }
@@ -333,6 +334,7 @@ input:focus, select:focus, textarea:focus, .combobox-wrap:focus-within input {
 .badge--prio-p1, .badge--prio-moyenne { background: var(--orange-soft); color: #a65600; }
 .badge--prio-p2 { background: var(--p2-soft); color: var(--p2); }
 .badge--prio-p3, .badge--prio-basse { background: var(--p3-soft); color: var(--p3); }
+.badge--prio-p4 { background: #eef2f6; color: #64748b; }
 .badge--category, .badge--case { background: #edf1f6; color: #4b576c; }
 .card__footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #69758a; font-size: 11.5px; font-weight: 650; }
 .card__footer span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
